@@ -13,29 +13,33 @@ using std::max;
 namespace da3d {
 
 void ColorTransform(const Image &src, Image *dst) {
-  for (int row = 0; row < src.rows(); ++row) {
-    for (int col = 0; col < src.columns(); ++col) {
-      float r, g, b;
-      r = src.val(col, row, 0);
-      g = src.val(col, row, 1);
-      b = src.val(col, row, 2);
-      dst->val(col, row, 0) = (r + g + b) / sqrtf(3);
-      dst->val(col, row, 1) = (r - b) / sqrtf(2);
-      dst->val(col, row, 2) = (r - 2 * g + b) / sqrtf(6);
+  if (src.channels() == 3) {
+    for (int row = 0; row < src.rows(); ++row) {
+      for (int col = 0; col < src.columns(); ++col) {
+        float r, g, b;
+        r = src.val(col, row, 0);
+        g = src.val(col, row, 1);
+        b = src.val(col, row, 2);
+        dst->val(col, row, 0) = (r + g + b) / sqrtf(3);
+        dst->val(col, row, 1) = (r - b) / sqrtf(2);
+        dst->val(col, row, 2) = (r - 2 * g + b) / sqrtf(6);
+      }
     }
   }
 }
 
 void ColorTransformInverse(const Image &src, Image *dst) {
-  for (int row = 0; row < src.rows(); ++row) {
-    for (int col = 0; col < src.columns(); ++col) {
-      float y, u, v;
-      y = src.val(col, row, 0);
-      u = src.val(col, row, 1);
-      v = src.val(col, row, 2);
-      dst->val(col, row, 0) = (sqrtf(2) * y + sqrtf(3) * u + v) / sqrtf(6);
-      dst->val(col, row, 1) = (y - sqrtf(2) * v) / sqrtf(3);
-      dst->val(col, row, 2) = (sqrtf(2) * y - sqrtf(3) * u + v) / sqrtf(6);
+  if (src.channels() == 3) {
+    for (int row = 0; row < src.rows(); ++row) {
+      for (int col = 0; col < src.columns(); ++col) {
+        float y, u, v;
+        y = src.val(col, row, 0);
+        u = src.val(col, row, 1);
+        v = src.val(col, row, 2);
+        dst->val(col, row, 0) = (sqrtf(2) * y + sqrtf(3) * u + v) / sqrtf(6);
+        dst->val(col, row, 1) = (y - sqrtf(2) * v) / sqrtf(3);
+        dst->val(col, row, 2) = (sqrtf(2) * y - sqrtf(3) * u + v) / sqrtf(6);
+      }
     }
   }
 }
