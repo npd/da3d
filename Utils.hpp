@@ -5,11 +5,13 @@
  *      Author: nicola
  */
 
-#ifndef SRC_UTILS_H_
-#define SRC_UTILS_H_
+#ifndef UTILS_HPP_
+#define UTILS_HPP_
 
 #include <cstring>
-#include <cassert>
+#include <string>
+#include "Image.hpp"
+#include "WeightMap.hpp"
 
 namespace utils {
 
@@ -42,6 +44,11 @@ inline float fastexp(float x) {
   return x;
 }
 
-} /* namespace utils */
+const char *pick_option(int *c, char **v, const char *o, const char *d);
+da3d::Image read_image(const std::string &filename);
+void save_image(const da3d::Image &image, const std::string &filename);
+void save_image(const da3d::WeightMap &may, const std::string &filename);
 
-#endif /* SRC_UTILS_H_ */
+}  // namespace utils
+
+#endif  // UTILS_HPP_

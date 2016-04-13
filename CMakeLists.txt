@@ -1,5 +1,4 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 PROJECT(da3d)
 
 # The build type "Release" adds some optimizations
@@ -21,28 +20,36 @@ endif ()
 
 # Enable C99
 if (CMAKE_VERSION VERSION_LESS "3.1")
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
 else ()
   set (CMAKE_C_STANDARD 99)
 endif ()
 
 # Enable C++11
-# if (CMAKE_VERSION VERSION_LESS "3.1")
-#   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-# else ()
-#   set (CMAKE_CXX_STANDARD 11)
-# endif ()
+if (CMAKE_VERSION VERSION_LESS "3.1")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
+else ()
+  set (CMAKE_CXX_STANDARD 11)
+endif ()
 
+# Enable OpenMP
+find_package (OpenMP)
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+
+# Link LibFFTW
+find_path (FFTW_INCLUDE_DIR fftw3.h)
+find_library (FFTWF_LIBRARIES NAMES fftw3f)
+include_directories (PUBLIC ${FFTW_INCLUDE_DIR})
+link_libraries (${FFTWF_LIBRARIES})
+
+# Link LibTIFF, LibJPEG, LibPNG
 find_package (TIFF REQUIRED)
 find_package (JPEG REQUIRED)
 find_package (PNG REQUIRED)
-find_package (OpenMP REQUIRED)
-find_path (FFTW_INCLUDES fftw3.h)
-find_library (FFTWF_LIBRARIES NAMES fftw3f)
-include_directories (PUBLIC ${TIFF_INCLUDE_DIR} PUBLIC ${JPEG_INCLUDE_DIR} PUBLIC ${PNG_INCLUDE_DIRS} PUBLIC ${FFTW_INCLUDES})
-link_libraries (${TIFF_LIBRARIES} ${JPEG_LIBRARIES} ${PNG_LIBRARIES} ${FFTWF_LIBRARIES})
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+include_directories (PUBLIC ${TIFF_INCLUDE_DIR} PUBLIC ${JPEG_INCLUDE_DIR} PUBLIC ${PNG_INCLUDE_DIRS})
+link_libraries (${TIFF_LIBRARIES} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
 
-set_property(SOURCE iio.c PROPERTY COMPILE_FLAGS "-Wno-unused-variable -Wno-unused-parameter -Wno-pointer-sign -Wno-parentheses -Wno-deprecated-declarations -Wno-unused-function")
+set_property (SOURCE iio.c PROPERTY COMPILE_FLAGS "-Wno-unused-variable -Wno-unused-parameter -Wno-pointer-sign -Wno-parentheses -Wno-deprecated-declarations -Wno-unused-function")
 
-add_executable(da3d DA3D.cc DA3D.h DftPatch.cc DftPatch.h iio.c iio.h IioImage.cc IioImage.h IioWeightMap.cc IioWeightMap.h Image.cc Image.h WeightMap.cc WeightMap.h Utils.h main.cc)
+add_executable(da3d DA3D.cpp DA3D.hpp DftPatch.hpp iio.c iio.h WeightMap.cpp WeightMap.hpp Utils.cpp Utils.hpp main.cpp)

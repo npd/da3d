@@ -5,12 +5,12 @@
  *      Author: nicola
  */
 
-#ifndef WEIGHTMAP_H_
-#define WEIGHTMAP_H_
-
-#include "Image.h"
+#ifndef WEIGHTMAP_HPP_
+#define WEIGHTMAP_HPP_
 
 namespace da3d {
+
+class Image;
 
 class WeightMap {
  public:
@@ -26,7 +26,8 @@ class WeightMap {
   int num_levels() const { return num_levels_; }
   float val(int col, int row, int level = 0) const;
   float &val(int col, int row, int level = 0);
- protected:
+  const float* data() const { return data_[0]; }
+ private:
   int num_levels_, width_, height_;
   int *rows_, *columns_;
   float **data_;
@@ -40,6 +41,6 @@ inline float &WeightMap::val(int col, int row, int level) {
   return data_[level][columns_[level] * row + col];
 }
 
-} /* namespace da3d */
+}  // namespace da3d
 
-#endif /* WEIGHTMAP_H_ */
+#endif  // WEIGHTMAP_HPP_

@@ -5,12 +5,13 @@
  *      Author: nicola
  */
 
-#include "WeightMap.h"
-#include "Utils.h"
-#include <algorithm>
+#include <cassert>
 #include <limits>
 #include <cstdlib>
-#include <cassert>
+#include <algorithm>
+#include "WeightMap.hpp"
+#include "Image.hpp"
+#include "Utils.hpp"
 
 using std::max;
 
