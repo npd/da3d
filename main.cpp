@@ -32,6 +32,11 @@ int main(int argc, char **argv) {
     cerr << "usage: " << argv[0] << " input guide sigma [output]" << endl;
     return EXIT_FAILURE;
   }
+
+#ifndef _OPENMP
+  cerr << "Warning: OpenMP not available. The algorithm will run in a single thread." << endl;
+#endif
+
   Image input = read_image(argv[1]);
   Image guide = read_image(argv[2]);
   float sigma = atof(argv[3]);

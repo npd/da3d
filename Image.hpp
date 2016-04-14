@@ -18,17 +18,22 @@ class Image {
  public:
   Image() = default;
   Image(int rows, int columns, int channels = 1, float val = 0.f);
-  Image(const float *data, int rows, int columns, int channels = 1);  // construct
-                                                                // from C array
+  // construct from C array
+  Image(const float *data, int rows, int columns, int channels = 1);
 
-  Image(const Image&) = delete;  // disable copy constructor
+  // disable copy constructor
+  Image(const Image&) = delete;
   Image& operator=(const Image&) = delete;
+  // instead of the copy constructor, we want explicit copy
+  Image copy() const;
 
-  Image(Image&&) = default;  // default move constructor
+  // default move constructor
+  Image(Image&&) = default;
   Image& operator=(Image&&) = default;
 
+  ~Image() = default;
+
   void Clear(float val = 0.f) { std::fill(data_.begin(), data_.end(), val); }
-  Image copy() const;  // instead of the copy constructor, we want explicit copy
 
   float val(int col, int row, int chan = 0) const;
   float& val(int col, int row, int chan = 0);

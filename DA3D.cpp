@@ -3,22 +3,26 @@
 #include "WeightMap.hpp"
 #include "Utils.hpp"
 #include "DftPatch.hpp"
-#include <omp.h>
 #include <algorithm>
+#include <cmath>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif  // OPENMP
 
 using std::max;
 using std::min;
 using std::vector;
 using std::pair;
 using std::move;
+using std::sqrt;
 
 namespace da3d {
 
 namespace {
 
-template<typename T>
-Image ColorTransform(T&& src) {
-  Image img = std::forward<T>(src);
+Image ColorTransform(Image&& src) {
+  Image img = move(src);
   if (img.channels() == 3) {
     for (int row = 0; row < img.rows(); ++row) {
       for (int col = 0; col < img.columns(); ++col) {
@@ -26,18 +30,17 @@ Image ColorTransform(T&& src) {
         r = img.val(col, row, 0);
         g = img.val(col, row, 1);
         b = img.val(col, row, 2);
-        img.val(col, row, 0) = (r + g + b) / sqrtf(3);
-        img.val(col, row, 1) = (r - b) / sqrtf(2);
-        img.val(col, row, 2) = (r - 2 * g + b) / sqrtf(6);
+        img.val(col, row, 0) = (r + g + b) / sqrt(3);
+        img.val(col, row, 1) = (r - b) / sqrt(2);
+        img.val(col, row, 2) = (r - 2 * g + b) / sqrt(6);
       }
     }
   }
   return img;
 }
 
-template<typename T>
-Image ColorTransformInverse(T&& src) {
-  Image img = std::forward<T>(src);
+Image ColorTransformInverse(Image&& src) {
+  Image img = move(src);
   if (img.channels() == 3) {
     for (int row = 0; row < img.rows(); ++row) {
       for (int col = 0; col < img.columns(); ++col) {
@@ -45,9 +48,9 @@ Image ColorTransformInverse(T&& src) {
         y = img.val(col, row, 0);
         u = img.val(col, row, 1);
         v = img.val(col, row, 2);
-        img.val(col, row, 0) = (sqrtf(2) * y + sqrtf(3) * u + v) / sqrtf(6);
-        img.val(col, row, 1) = (y - sqrtf(2) * v) / sqrtf(3);
-        img.val(col, row, 2) = (sqrtf(2) * y - sqrtf(3) * u + v) / sqrtf(6);
+        img.val(col, row, 0) = (sqrt(2) * y + sqrt(3) * u + v) / sqrt(6);
+        img.val(col, row, 1) = (y - sqrt(2) * v) / sqrt(3);
+        img.val(col, row, 2) = (sqrt(2) * y - sqrt(3) * u + v) / sqrt(6);
       }
     }
   }
@@ -62,7 +65,7 @@ inline int SymmetricCoordinate(int pos, int size) {
 }
 
 pair<int, int> ComputeTiling(int rows, int columns, int tiles) {
-  float best_r = sqrtf(static_cast<float>(tiles * rows) / columns);
+  float best_r = sqrt(static_cast<float>(tiles * rows) / columns);
   int r_low = static_cast<int>(best_r);
   int r_up = r_low + 1;
   if (r_low < 1) return {1, tiles};
@@ -365,7 +368,11 @@ Image DA3D(const Image &noisy, const Image &guide, float sigma, int nthreads,
   // padding and color transformation
   int s = utils::NextPowerOf2(2 * r + 1);
 
+#ifdef _OPENMP
   if (!nthreads) nthreads = omp_get_max_threads();  // number of threads
+#else
+  nthreads = 1;
+#endif  // _OPENMP
 
   pair<int, int> tiling = ComputeTiling(guide.rows(), guide.columns(), nthreads);
   vector<Image> noisy_tiles = SplitTiles(ColorTransform(noisy.copy()), r, s - r - 1, tiling);
