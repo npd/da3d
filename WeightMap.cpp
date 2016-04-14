@@ -18,25 +18,20 @@ using std::min;
 
 namespace da3d {
 
-WeightMap::WeightMap()
-    : num_levels_(0), width_(0), height_(0),
-      rows_(NULL), columns_(NULL), data_(NULL) {}
-
-WeightMap::WeightMap(int rows, int columns) : data_(NULL) {
+WeightMap::WeightMap(int rows, int columns) {
   Init(rows, columns);
 }
 
 void WeightMap::Init(int rows, int columns) {
-  // memory allocation
-  assert(data_ == NULL);
+  assert (rows > 0 && columns > 0);
   int height_rows = utils::NumberOfBits(rows - 1) + 1;
   int height_columns = utils::NumberOfBits(columns - 1) + 1;
-  num_levels_ = (height_rows > height_columns) ? height_rows : height_columns;
+  num_levels_ = max(height_rows, height_columns);
   width_ = columns;
   height_ = rows;
-  rows_ = (int*)std::malloc(sizeof(int) * num_levels_);
-  columns_ = (int*)std::malloc(sizeof(int) * num_levels_);
-  data_ = (float**)std::malloc(sizeof(float*) * num_levels_);
+  rows_.resize(num_levels_);
+  columns_.resize(num_levels_);
+  data_.resize(num_levels_);
 
   // initialization of layers
   int rows_rounded = utils::NextPowerOf2(rows);
@@ -44,7 +39,7 @@ void WeightMap::Init(int rows, int columns) {
   for (int l = 0; l < num_levels_; ++l) {
     rows_[l] = rows_rounded;
     columns_[l] = cols_rounded;
-    data_[l] = (float*)std::malloc(sizeof(float) * rows_rounded * cols_rounded);
+    data_[l].resize(rows_rounded * cols_rounded);
     // zeros in the good area, MAXFLT elsewhere
     for (int row = 0; row < rows; ++row) {
       for (int col = 0; col < columns; ++col) {
@@ -66,15 +61,6 @@ void WeightMap::Init(int rows, int columns) {
   }
   assert(rows == 1);
   assert(columns == 1);
-}
-
-WeightMap::~WeightMap() {
-  for (int l = 0; l < num_levels_; ++l) {
-    std::free(data_[l]);
-  }
-  std::free(data_);
-  std::free(rows_);
-  std::free(columns_);
 }
 
 float WeightMap::Minimum() const {
@@ -103,23 +89,26 @@ void WeightMap::FindMinimum(int *row, int *col) const {
 
 void WeightMap::IncreaseWeights(const Image &weights, int row0, int col0) {
   assert(weights.channels() == 1);
-  for (int row = max(0, -row0); row < min(weights.rows(), height() - row0); ++row) {
-    for (int col = max(0, -col0); col < min(weights.columns(), width() - col0); ++col) {
-        val(col0 + col, row0 + row) += weights.val(col, row);
+  int firstrow = max(0, row0);
+  int lastrow = min(height(), row0 + weights.rows()) - 1;
+  int firstcol = max(0, col0);
+  int lastcol = min(width(), col0 + weights.columns()) - 1;
+
+  for (int row = firstrow; row <= lastrow; ++row) {
+    for (int col = firstcol; col <= lastcol; ++col) {
+        val(col, row) += weights.val(col - col0, row - row0);
     }
   }
   // Updates the tree
   for (int l = 1; l < num_levels_; ++l) {
     // Updates the level l
-    for (int row = max(0, row0) >> l; row <= (row0 + weights.rows() - 1) >> l && row <= (height() - 1) >> l; ++row) {
-      for (int col = max(0, col0) >> l; col <= (col0 + weights.columns() - 1) >> l && col <= (width() - 1) >> l; ++col) {
-        val(col, row, l) = val(col << 1, row << 1, l - 1);
-        if (val(col, row, l) > val((col << 1) + 1, row << 1, l - 1))
-          (val(col, row, l) = val((col << 1) + 1, row << 1, l - 1));
-        if (val(col, row, l) > val((col << 1) + 1, (row << 1) + 1, l - 1))
-          (val(col, row, l) = val((col << 1) + 1, (row << 1) + 1, l - 1));
-        if (val(col, row, l) > val(col << 1, (row << 1) + 1, l - 1))
-          (val(col, row, l) = val(col << 1, (row << 1) + 1, l - 1));
+    for (int row = firstrow >> l; row <= lastrow >> l; ++row) {
+      for (int col = firstcol >> l; col <= lastcol >> l; ++col) {
+        int dc = col << 1, dr = row << 1;
+        val(col, row, l) = min({val(dc,     dr,     l - 1),
+                                val(dc + 1, dr,     l - 1),
+                                val(dc,     dr + 1, l - 1),
+                                val(dc + 1, dr + 1, l - 1)});
       }
     }
   }

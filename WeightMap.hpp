@@ -9,6 +9,7 @@
 #define WEIGHTMAP_HPP_
 
 #include <cassert>
+#include <vector>
 
 namespace da3d {
 
@@ -16,9 +17,9 @@ class Image;
 
 class WeightMap {
  public:
-  WeightMap();
+  WeightMap() = default;
   WeightMap(int rows, int columns);
-  ~WeightMap();
+  ~WeightMap() = default;
   void Init(int rows, int columns);
   float Minimum() const;
   void FindMinimum(int *row, int *col) const;
@@ -28,11 +29,11 @@ class WeightMap {
   int num_levels() const { return num_levels_; }
   float val(int col, int row, int level = 0) const;
   float &val(int col, int row, int level = 0);
-  const float* data() const { return data_[0]; }
+  const float* data() const { return data_[0].data(); }
  private:
-  int num_levels_, width_, height_;
-  int *rows_, *columns_;
-  float **data_;
+  int num_levels_{0}, width_{0}, height_{0};
+  std::vector<int> rows_, columns_;
+  std::vector<std::vector<float>> data_;
 };
 
 inline float WeightMap::val(int col, int row, int level) const {
