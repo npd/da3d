@@ -1,5 +1,5 @@
-#include "DA3D.hpp"
 #include "Image.hpp"
+#include "DA3D.hpp"
 #include "WeightMap.hpp"
 #include "Utils.hpp"
 #include "DftPatch.hpp"
@@ -7,6 +7,10 @@
 #include <algorithm>
 
 using std::max;
+using std::min;
+using std::vector;
+using std::pair;
+using std::move;
 
 namespace da3d {
 
@@ -57,22 +61,81 @@ inline int SymmetricCoordinate(int pos, int size) {
   return pos;
 }
 
-Image PadSymmetric(const Image &src, int pad_before, int pad_after) {
-  int pad_total = pad_before + pad_after;
-  Image dst = Image(src.rows() + pad_total,
-                    src.columns() + pad_total,
-                    src.channels());
-  for (int row = 0; row < dst.rows(); ++row) {
-    for (int col = 0; col < dst.columns(); ++col) {
-      for (int chan = 0; chan < dst.channels(); ++chan) {
-        dst.val(col, row, chan) =
-            src.val(SymmetricCoordinate(col - pad_before, src.columns()),
-                    SymmetricCoordinate(row - pad_before, src.rows()),
-                    chan);
+pair<int, int> ComputeTiling(int rows, int columns, int tiles) {
+  float best_r = sqrtf(static_cast<float>(tiles * rows) / columns);
+  int r_low = static_cast<int>(best_r);
+  int r_up = r_low + 1;
+  if (r_low < 1) return {1, tiles};
+  if (r_up > tiles) return {tiles, 1};
+  while (tiles % r_low != 0) --r_low;
+  while (tiles % r_up != 0) ++r_up;
+  if (r_up * r_low * columns > tiles * rows) {
+    return {r_low, tiles / r_low};
+  } else {
+    return {r_up, tiles / r_up};
+  }
+}
+
+vector<Image> SplitTiles(const Image &src,
+                         int pad_before,
+                         int pad_after,
+                         pair<int, int> tiling) {
+  vector<Image> result;
+  for (int tr = 0; tr < tiling.first; ++tr) {
+    int rstart = src.rows() * tr / tiling.first - pad_before;
+    int rend = src.rows() * (tr + 1) / tiling.first + pad_after;
+    for (int tc = 0; tc < tiling.second; ++tc) {
+      int cstart = src.columns() * tc / tiling.second - pad_before;
+      int cend = src.columns() * (tc + 1) / tiling.second + pad_after;
+      Image tile(rend - rstart, cend - cstart, src.channels());
+      for (int row = rstart; row < rend; ++row) {
+        for (int col = cstart; col < cend; ++col) {
+          for (int ch = 0; ch < src.channels(); ++ch) {
+            tile.val(col - cstart, row - rstart, ch) = src.val(
+                SymmetricCoordinate(col, src.columns()),
+                SymmetricCoordinate(row, src.rows()),
+                ch);
+          }
+        }
+      }
+      result.push_back(move(tile));
+    }
+  }
+  return result;
+}
+
+Image MergeTiles(const vector<pair<Image, Image>> &src, pair<int, int> shape,
+                 int pad_before, int pad_after, pair<int, int> tiling) {
+  int channels = src[0].first.channels();
+  Image result(shape.first, shape.second, channels);
+  Image weights(shape.first, shape.second);
+  auto tile = src.begin();
+  for (int tr = 0; tr < tiling.first; ++tr) {
+    int rstart = shape.first * tr / tiling.first - pad_before;
+    int rend = shape.first * (tr + 1) / tiling.first + pad_after;
+    for (int tc = 0; tc < tiling.second; ++tc) {
+      int cstart = shape.second * tc / tiling.second - pad_before;
+      int cend = shape.second * (tc + 1) / tiling.second + pad_after;
+      for (int row = max(0, rstart); row < min(shape.first, rend); ++row) {
+        for (int col = max(0, cstart); col < min(shape.second, cend); ++col) {
+          for (int ch = 0; ch < channels; ++ch) {
+            result.val(col, row, ch) +=
+                tile->first.val(col - cstart, row - rstart, ch);
+          }
+          weights.val(col, row) += tile->second.val(col - cstart, row - rstart);
+        }
+      }
+      ++tile;
+    }
+  }
+  for (int row = 0; row < shape.first; ++row) {
+    for (int col = 0; col < shape.second; ++col) {
+      for (int ch = 0; ch < channels; ++ch) {
+        result.val(col, row, ch) /= weights.val(col, row);
       }
     }
   }
-  return dst;
+  return result;
 }
 
 void ExtractPatch(const Image &src, int pr, int pc, Image *dst) {
@@ -211,19 +274,9 @@ void ModifyPatch(const Image &patch,
   }
 }
 
-void DA3D_strip(const Image &noisy_pad,
-                const Image &guide_pad,
-                const Image &guide,
-                Image *output,
-                Image *weights,
-                float sigma,
-                int row_start,
-                int row_end,
-                int r,
-                float sigma_s,
-                float gamma_r,
-                float gamma_f,
-                float threshold) {
+pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
+                              float sigma, int r, float sigma_s, float gamma_r,
+                              float gamma_f, float threshold) {
   // useful values
   int s = utils::NextPowerOf2(2 * r + 1);
   float sigma2 = sigma * sigma;
@@ -244,14 +297,16 @@ void DA3D_strip(const Image &noisy_pad,
   int pr, pc;  // coordinates of the central pixel
   float reg_plane[guide.channels()][2];  // parameters of the regression plane
   float yt[guide.channels()];  // weighted average of the patch
-  WeightMap agg_weights(row_end - row_start, guide.columns());  // line 1
+  WeightMap agg_weights(guide.rows() - s + 1, guide.columns() - s + 1);  // line 1
+
+  Image output(guide.rows(), guide.columns(), guide.channels());
+  Image weights(guide.rows(), guide.columns());
 
   // main loop
   while (agg_weights.Minimum() < threshold) {  // line 4
     agg_weights.FindMinimum(&pr, &pc);  // line 5
-    pr += row_start;
-    FastExtractPatch(noisy_pad, pr, pc, &y);  // line 6
-    FastExtractPatch(guide_pad, pr, pc, &g);  // line 7
+    FastExtractPatch(noisy, pr, pc, &y);  // line 6
+    FastExtractPatch(guide, pr, pc, &g);  // line 7
     BilateralWeight(g, &k_reg, r, gamma_rr_sigma2, sigma_sr2);  // line 8
     ComputeRegressionPlane(y, g, k_reg, r, reg_plane);  // line 9
     SubtractPlane(r, reg_plane, &y);  // line 10
@@ -284,68 +339,45 @@ void DA3D_strip(const Image &noisy_pad,
     y_m.ToSpace();  // line 19
 
     // lines 20,21,25
-    // icol and irow are the "internal" indexes (with respect to the patch).
-    // col and row are the indexes with respect to the entire image
-    for (int row = max(0, pr - r), irow = row - pr + r;
-         irow < s && row < output->rows(); ++row, ++irow) {
-      for (int col = max(0, pc - r), icol = col - pc + r;
-           icol < s && col < output->columns(); ++col, ++icol) {
-        for (int chan = 0; chan < output->channels(); ++chan) {
-          output->val(col, row, chan) += (y_m.space(icol, irow, chan)[0]
-              + (reg_plane[chan][0] * (irow - r)
-                  + reg_plane[chan][1] * (icol - r)) * k.val(icol, irow)
-              - (1.f - k.val(icol, irow)) * yt[chan]) * k.val(icol, irow);
+    // col and row are the "internal" indexes (with respect to the patch).
+    for (int row = 0; row < s; ++row) {
+      for (int col = 0; col < s; ++col) {
+        for (int chan = 0; chan < output.channels(); ++chan) {
+          output.val(col + pc, row + pr, chan) +=
+              (y_m.space(col, row, chan)[0] + (reg_plane[chan][0] * (row - r)
+                  + reg_plane[chan][1] * (col - r)) * k.val(col, row)
+                  - (1.f - k.val(col, row)) * yt[chan]) * k.val(col, row);
         }
-        k.val(icol, irow) *= k.val(icol, irow);  // line 22
-        weights->val(col, row) += k.val(icol, irow);
+        k.val(col, row) *= k.val(col, row);  // line 22
+        weights.val(col + pc, row + pr) += k.val(col, row);
       }
     }
-    agg_weights.IncreaseWeights(k, pr - row_start - r, pc - r);  // line 24
+    agg_weights.IncreaseWeights(k, pr - r, pc - r);  // line 24
   }
+
+  return {move(output), move(weights)};
 }
 
 }  // namespace
 
-void DA3D(const Image &noisy, const Image &guide, Image *output, float sigma,
-          int nthreads, int r, float sigma_s, float gamma_r, float gamma_f,
-          float threshold) {
+Image DA3D(const Image &noisy, const Image &guide, float sigma, int nthreads,
+           int r, float sigma_s, float gamma_r, float gamma_f, float threshold) {
   // padding and color transformation
   int s = utils::NextPowerOf2(2 * r + 1);
-  Image guide_pad = PadSymmetric(guide, r, s - r - 1);
-  Image noisy_pad = PadSymmetric(noisy, r, s - r - 1);
-//  ColorTransform(guide_pad, &guide_pad);
-  guide_pad = ColorTransform(std::move(guide_pad));
-//  ColorTransform(noisy_pad, &noisy_pad);
-  noisy_pad = ColorTransform(std::move(noisy_pad));
-  *output = Image(guide.rows(), guide.columns(), guide.channels());
-  Image agg_weight(guide.rows(), guide.columns());
 
   if (!nthreads) nthreads = omp_get_max_threads();  // number of threads
+
+  pair<int, int> tiling = ComputeTiling(guide.rows(), guide.columns(), nthreads);
+  vector<Image> noisy_tiles = SplitTiles(ColorTransform(noisy.copy()), r, s - r - 1, tiling);
+  vector<Image> guide_tiles = SplitTiles(ColorTransform(guide.copy()), r, s - r - 1, tiling);
+  vector<pair<Image, Image>> result_tiles(nthreads);
+
 #pragma omp parallel for num_threads(nthreads)
   for (int i = 0; i < nthreads; ++i) {
-    Image out(guide.rows(), guide.columns(), guide.channels());
-    Image weight(guide.rows(), guide.columns());
-    DA3D_strip(noisy_pad, guide_pad, guide, &out, &weight, sigma,
-               (i * guide.rows()) / nthreads, ((i + 1) * guide.rows()) / nthreads,
-               r, sigma_s, gamma_r, gamma_f, threshold);
-#pragma omp critical
-    for (int row = 0; row < guide.rows(); ++row) {
-      for (int col = 0; col < guide.columns(); ++col) {
-        agg_weight.val(col, row) += weight.val(col, row);
-        for (int chan = 0; chan < guide.channels(); ++chan) {
-          output->val(col, row, chan) += out.val(col, row, chan);
-        }
-      }
-    }
+    result_tiles[i] = DA3D_block(noisy_tiles[i], guide_tiles[i], sigma, r,
+                                 sigma_s, gamma_r, gamma_f, threshold);
   }
-  for (int row = 0; row < guide.rows(); ++row) {
-    for (int col = 0; col < guide.columns(); ++col) {
-      for (int chan = 0; chan < guide.channels(); ++chan) {
-        output->val(col, row, chan) /= agg_weight.val(col, row);
-      }
-    }
-  }
-  *output = ColorTransformInverse(std::move(*output));
+  return ColorTransformInverse(MergeTiles(result_tiles, guide.shape(), r, s - r - 1, tiling));
 }
 
 }  // namespace da3d

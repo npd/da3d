@@ -34,9 +34,8 @@ int main(int argc, char **argv) {
   }
   Image input = read_image(argv[1]);
   Image guide = read_image(argv[2]);
-  Image output;
   float sigma = atof(argv[3]);
-  DA3D(input, guide, &output, sigma, nthreads, r, sigma_s, gamma_r, gamma_f,
-       threshold);
+  Image output = DA3D(input, guide, sigma, nthreads, r, sigma_s, gamma_r,
+                      gamma_f, threshold);
   save_image(output, argc > 4 ? argv[4] : "-");
 }

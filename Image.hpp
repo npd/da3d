@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <vector>
+#include <utility>
 
 namespace da3d {
 
@@ -17,7 +18,7 @@ class Image {
  public:
   Image() = default;
   Image(int rows, int columns, int channels = 1, float val = 0.f);
-  Image(float *data, int rows, int columns, int channels = 1);  // construct
+  Image(const float *data, int rows, int columns, int channels = 1);  // construct
                                                                 // from C array
 
   Image(const Image&) = delete;  // disable copy constructor
@@ -27,6 +28,7 @@ class Image {
   Image& operator=(Image&&) = default;
 
   void Clear(float val = 0.f) { std::fill(data_.begin(), data_.end(), val); }
+  Image copy() const;  // instead of the copy constructor, we want explicit copy
 
   float val(int col, int row, int chan = 0) const;
   float& val(int col, int row, int chan = 0);
@@ -40,6 +42,7 @@ class Image {
   int samples() const { return channels_ * columns_ * rows_; }
   float* data() { return data_.data(); }
   const float* data() const { return data_.data(); }
+  std::pair<int, int> shape() const { return {rows_, columns_}; }
   std::vector<float>::iterator begin() { return data_.begin(); }
   std::vector<float>::const_iterator begin() const { return data_.begin(); }
   std::vector<float>::iterator end() { return data_.end(); }
@@ -56,22 +59,25 @@ inline Image::Image(int rows, int columns, int channels, float val)
     : rows_(rows), columns_(columns), channels_(channels),
       data_(rows * columns * channels, val) {}
 
-inline Image::Image(float *data, int rows, int columns, int channels)
+inline Image::Image(const float *data, int rows, int columns, int channels)
     : rows_(rows), columns_(columns), channels_(channels),
       data_(data, data + rows * columns * channels) {}
 
+inline Image Image::copy() const {
+  return Image(data(), rows(), columns(), channels());
+}
 
 inline float Image::val(int col, int row, int chan) const {
-  assert(col < columns_);
-  assert(row < rows_);
-  assert(chan < channels_);
+  assert(0 <= col && col < columns_);
+  assert(0 <= row && row < rows_);
+  assert(0 <= chan && chan < channels_);
   return data_[row * columns_ * channels_ + col * channels_ + chan];
 }
 
 inline float& Image::val(int col, int row, int chan) {
-  assert(col < columns_);
-  assert(row < rows_);
-  assert(chan < channels_);
+  assert(0 <= col && col < columns_);
+  assert(0 <= row && row < rows_);
+  assert(0 <= chan && chan < channels_);
   return data_[row * columns_ * channels_ + col * channels_ + chan];
 }
 

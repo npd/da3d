@@ -14,6 +14,7 @@
 #include "Utils.hpp"
 
 using std::max;
+using std::min;
 
 namespace da3d {
 
@@ -102,8 +103,8 @@ void WeightMap::FindMinimum(int *row, int *col) const {
 
 void WeightMap::IncreaseWeights(const Image &weights, int row0, int col0) {
   assert(weights.channels() == 1);
-  for (int row = max(0, -row0); row < weights.rows() && row0 + row < height(); ++row) {
-    for (int col = max(0, -col0); col < weights.columns() && col0 + col < width(); ++col) {
+  for (int row = max(0, -row0); row < min(weights.rows(), height() - row0); ++row) {
+    for (int col = max(0, -col0); col < min(weights.columns(), width() - col0); ++col) {
         val(col0 + col, row0 + row) += weights.val(col, row);
     }
   }
