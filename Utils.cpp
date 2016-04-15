@@ -51,12 +51,4 @@ void save_image(const Image &image, const string &filename) {
                            image.channels());
 }
 
-void save_image(const WeightMap &map, const string &filename) {
-  iio_save_image_float_vec(const_cast<char *>(filename.c_str()),
-                           const_cast<float *>(map.data()),
-                           map.width(),
-                           map.height(),
-                           1);
-}
-
 }  // namespace utils

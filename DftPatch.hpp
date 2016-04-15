@@ -9,6 +9,7 @@
 #define DFTPATCH_HPP_
 
 #include <fftw3.h>
+#include <cassert>
 
 namespace da3d {
 
@@ -20,42 +21,50 @@ class DftPatch {
   void ToSpace();
   int rows() const { return rows_; }
   int columns() const { return columns_; }
+  int frows() const { return rows_; }
+  int fcolumns() const { return fcolumns_; }
   int channels() const { return channels_; }
-  fftwf_complex& space(int col, int row, int chan = 0);
+  float& space(int col, int row, int chan = 0);
   fftwf_complex& freq(int col, int row, int chan = 0);
 
  private:
-  fftwf_complex *space_;
+  float *space_;
   fftwf_complex *freq_;
   fftwf_plan plan_forward_;
   fftwf_plan plan_backward_;
-  int rows_, columns_, channels_;
+  int rows_, columns_, fcolumns_, channels_;
 };
 
-inline fftwf_complex& DftPatch::space(int col, int row, int chan) {
+inline float& DftPatch::space(int col, int row, int chan) {
+  assert(0 <= col && col < columns_);
+  assert(0 <= row && row < rows_);
+  assert(0 <= chan && chan < channels_);
   return space_[row * columns_ * channels_ + col * channels_ + chan];
 }
 
 inline fftwf_complex& DftPatch::freq(int col, int row, int chan) {
-  return freq_[row * columns_ * channels_ + col * channels_ + chan];
+  assert(0 <= col && col < fcolumns_);
+  assert(0 <= row && row < rows_);
+  assert(0 <= chan && chan < channels_);
+  return freq_[row * fcolumns_ * channels_ + col * channels_ + chan];
 }
 
 inline DftPatch::DftPatch(int rows, int columns, int channels)
-    : rows_(rows), columns_(columns), channels_(channels) {
+    : rows_(rows), columns_(columns), fcolumns_(columns / 2 + 1), channels_(channels) {
   int N = rows * columns * channels;
-  space_ = reinterpret_cast<fftwf_complex *>(fftwf_malloc(
-      sizeof(fftwf_complex) * N));
+  int N_half = rows * fcolumns_ * channels;
+  space_ = reinterpret_cast<float *>(fftwf_malloc(sizeof(float) * N));
   freq_ = reinterpret_cast<fftwf_complex *>(fftwf_malloc(
-      sizeof(fftwf_complex) * N));
-  int n[] = {columns, rows};
+      sizeof(fftwf_complex) * N_half));
+  int n[] = {rows, columns};
 #pragma omp critical
   {
-    plan_forward_ = fftwf_plan_many_dft(2, n, channels, space_, NULL, channels,
-                                        1, freq_, NULL, channels, 1,
-                                        FFTW_FORWARD, FFTW_MEASURE);
-    plan_backward_ = fftwf_plan_many_dft(2, n, channels, freq_, NULL, channels,
-                                         1, space_, NULL, channels, 1,
-                                         FFTW_BACKWARD, FFTW_MEASURE);
+    plan_forward_ = fftwf_plan_many_dft_r2c(2, n, channels, space_, NULL,
+                                            channels, 1, freq_, NULL, channels,
+                                            1, FFTW_MEASURE);
+    plan_backward_ = fftwf_plan_many_dft_c2r(2, n, channels, freq_, NULL,
+                                             channels, 1, space_, NULL,
+                                             channels, 1, FFTW_MEASURE);
   }
 }
 
@@ -73,7 +82,7 @@ inline void DftPatch::ToFreq() {
 inline void DftPatch::ToSpace() {
   fftwf_execute(plan_backward_);
   for (int i = 0; i < rows_ * columns_ * channels_; ++i) {
-    space_[i][0] /= rows_ * columns_;
+    space_[i] /= rows_ * columns_;
   }
 }
 

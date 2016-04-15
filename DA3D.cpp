@@ -266,10 +266,9 @@ void ModifyPatch(const Image &patch,
     avg /= weight;
     for (int row = 0; row < patch.rows(); ++row) {
       for (int col = 0; col < patch.columns(); ++col) {
-        modified->space(col, row, chan)[0] =
+        modified->space(col, row, chan) =
             k.val(col, row) * patch.val(col, row, chan)
                 + (1 - k.val(col, row)) * avg;
-        modified->space(col, row, chan)[1] = 0.f;
       }
     }
     if (average) {
@@ -327,8 +326,8 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
       }
     }
     sigma_f2 *= sigma2;  // line 17
-    for (int row = 0; row < y_m.rows(); ++row) {
-      for (int col = 0; col < y_m.columns(); ++col) {
+    for (int row = 0; row < y_m.frows(); ++row) {
+      for (int col = 0; col < y_m.fcolumns(); ++col) {
         for (int chan = 0; chan < y_m.channels(); ++chan) {
           if (row || col) {
             float G2 = g_m.freq(col, row, chan)[0] * g_m.freq(col, row, chan)[0]
@@ -348,7 +347,7 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
       for (int col = 0; col < s; ++col) {
         for (int chan = 0; chan < output.channels(); ++chan) {
           output.val(col + pc, row + pr, chan) +=
-              (y_m.space(col, row, chan)[0] + (reg_plane[chan][0] * (row - r)
+              (y_m.space(col, row, chan) + (reg_plane[chan][0] * (row - r)
                   + reg_plane[chan][1] * (col - r)) * k.val(col, row)
                   - (1.f - k.val(col, row)) * yt[chan]) * k.val(col, row);
         }
