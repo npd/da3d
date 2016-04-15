@@ -6,16 +6,18 @@ if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE "Release")
 endif ()
 
-# Are we using gcc?
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  # GCC on MacOs needs this option to use the clang assembler
-  if (APPLE)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wa,-q")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wa,-q")
-  endif ()
-  # Optimize to the current CPU and enable warnings
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -Wall -Wextra")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra")
+# GCC on MacOs needs this option to use the clang assembler
+if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") AND (APPLE))
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wa,-q")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wa,-q")
+endif ()
+
+# Optimize to the current CPU and enable warnings
+if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+    (CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR
+    (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -Wall -Wextra -O2")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -O2")
 endif ()
 
 # Enable C99
