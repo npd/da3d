@@ -2,16 +2,19 @@
 // Created by Nicola Pierazzo on 07/04/16.
 //
 
-#include <string>
+#include <cmath>
 #include "Utils.hpp"
-#include "Image.hpp"
-#include "WeightMap.hpp"
 
 extern "C" {
 #include "iio.h"
 }
 
 using std::string;
+using std::vector;
+using std::pair;
+using std::move;
+using std::max;
+using std::min;
 using da3d::Image;
 using da3d::WeightMap;
 
@@ -49,6 +52,86 @@ void save_image(const Image &image, const string &filename) {
                            image.columns(),
                            image.rows(),
                            image.channels());
+}
+
+pair<int, int> ComputeTiling(int rows, int columns, int tiles) {
+  float best_r = sqrt(static_cast<float>(tiles * rows) / columns);
+  int r_low = static_cast<int>(best_r);
+  int r_up = r_low + 1;
+  if (r_low < 1) return {1, tiles};
+  if (r_up > tiles) return {tiles, 1};
+  while (tiles % r_low != 0) --r_low;
+  while (tiles % r_up != 0) ++r_up;
+  if (r_up * r_low * columns > tiles * rows) {
+    return {r_low, tiles / r_low};
+  } else {
+    return {r_up, tiles / r_up};
+  }
+}
+
+vector<Image> SplitTiles(const Image &src,
+                         int pad_before,
+                         int pad_after,
+                         pair<int, int> tiling) {
+  vector<Image> result;
+  for (int tr = 0; tr < tiling.first; ++tr) {
+    int rstart = src.rows() * tr / tiling.first - pad_before;
+    int rend = src.rows() * (tr + 1) / tiling.first + pad_after;
+    for (int tc = 0; tc < tiling.second; ++tc) {
+      int cstart = src.columns() * tc / tiling.second - pad_before;
+      int cend = src.columns() * (tc + 1) / tiling.second + pad_after;
+      Image tile(rend - rstart, cend - cstart, src.channels());
+      for (int row = rstart; row < rend; ++row) {
+        for (int col = cstart; col < cend; ++col) {
+          for (int ch = 0; ch < src.channels(); ++ch) {
+            tile.val(col - cstart, row - rstart, ch) = src.val(
+                SymmetricCoordinate(col, src.columns()),
+                SymmetricCoordinate(row, src.rows()),
+                ch);
+          }
+        }
+      }
+      result.push_back(move(tile));
+    }
+  }
+  return result;
+}
+
+Image MergeTiles(const vector<pair<Image, Image>> &src,
+                 pair<int, int> shape,
+                 int pad_before,
+                 int pad_after,
+                 pair<int, int> tiling) {
+  int channels = src[0].first.channels();
+  Image result(shape.first, shape.second, channels);
+  Image weights(shape.first, shape.second);
+  auto tile = src.begin();
+  for (int tr = 0; tr < tiling.first; ++tr) {
+    int rstart = shape.first * tr / tiling.first - pad_before;
+    int rend = shape.first * (tr + 1) / tiling.first + pad_after;
+    for (int tc = 0; tc < tiling.second; ++tc) {
+      int cstart = shape.second * tc / tiling.second - pad_before;
+      int cend = shape.second * (tc + 1) / tiling.second + pad_after;
+      for (int row = max(0, rstart); row < min(shape.first, rend); ++row) {
+        for (int col = max(0, cstart); col < min(shape.second, cend); ++col) {
+          for (int ch = 0; ch < channels; ++ch) {
+            result.val(col, row, ch) +=
+                tile->first.val(col - cstart, row - rstart, ch);
+          }
+          weights.val(col, row) += tile->second.val(col - cstart, row - rstart);
+        }
+      }
+      ++tile;
+    }
+  }
+  for (int row = 0; row < shape.first; ++row) {
+    for (int col = 0; col < shape.second; ++col) {
+      for (int ch = 0; ch < channels; ++ch) {
+        result.val(col, row, ch) /= weights.val(col, row);
+      }
+    }
+  }
+  return result;
 }
 
 }  // namespace utils

@@ -10,6 +10,8 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
+#include <utility>
 #include "Image.hpp"
 #include "WeightMap.hpp"
 
@@ -44,10 +46,22 @@ inline float fastexp(float x) {
   return x;
 }
 
+inline int SymmetricCoordinate(int pos, int size) {
+  if (pos < 0) pos = -pos - 1;
+  if (pos >= 2 * size) pos %= 2 * size;
+  if (pos >= size) pos = 2 * size - 1 - pos;
+  return pos;
+}
+
 const char *pick_option(int *c, char **v, const char *o, const char *d);
 da3d::Image read_image(const std::string &filename);
 void save_image(const da3d::Image &image, const std::string &filename);
-
+std::pair<int, int> ComputeTiling(int rows, int columns, int tiles);
+std::vector<da3d::Image> SplitTiles(const da3d::Image &src, int pad_before,
+                                    int pad_after, std::pair<int, int> tiling);
+da3d::Image MergeTiles(const std::vector<std::pair<da3d::Image, da3d::Image>> &src,
+                       std::pair<int, int> shape, int pad_before, int pad_after,
+                       std::pair<int, int> tiling);
 }  // namespace utils
 
 #endif  // UTILS_HPP_
