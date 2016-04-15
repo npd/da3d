@@ -14,6 +14,7 @@ using std::max;
 using std::min;
 using std::vector;
 using std::pair;
+using std::tie;
 using std::move;
 using std::sqrt;
 
@@ -307,7 +308,7 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
 
   // main loop
   while (agg_weights.Minimum() < threshold) {  // line 4
-    agg_weights.FindMinimum(&pr, &pc);  // line 5
+    tie(pr, pc) = agg_weights.FindMinimum();  // line 5
     FastExtractPatch(noisy, pr, pc, &y);  // line 6
     FastExtractPatch(guide, pr, pc, &g);  // line 7
     BilateralWeight(g, &k_reg, r, gamma_rr_sigma2, sigma_sr2);  // line 8

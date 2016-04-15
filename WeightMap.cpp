@@ -15,6 +15,9 @@
 
 using std::max;
 using std::min;
+using std::pair;
+using std::make_pair;
+using std::tie;
 
 namespace da3d {
 
@@ -42,9 +45,8 @@ void WeightMap::Init(int rows, int columns) {
     data_[l].resize(rows_rounded * cols_rounded);
     // zeros in the good area, MAXFLT elsewhere
     for (int row = 0; row < rows; ++row) {
-      for (int col = 0; col < columns; ++col) {
+      for (int col = 0; col < columns; ++col)
         val(col, row, l) = 0.f;
-      }
       for (int col = columns; col < cols_rounded; ++col) {
         val(col, row, l) = std::numeric_limits<float>::infinity();
       }
@@ -67,24 +69,22 @@ float WeightMap::Minimum() const {
   return val(0, 0, num_levels_ - 1);
 }
 
-void WeightMap::FindMinimum(int *row, int *col) const {
-  *row = 0;
-  *col = 0;
+pair<int, int> WeightMap::FindMinimum() const {
+  int row = 0;
+  int col = 0;
   for (int l = num_levels_ - 2; l >= 0; --l) {
-    *row <<= 1;
-    *col <<= 1;
-    int r = *row, c = *col;
-    float min = val(c, r, l);
-    for (int i = 0; i < 2; ++i) {
-      for (int j = 0; j < 2; ++j) {
-        if (val(c + i, r + j, l) < min) {
-          min = val(c + i, r + j, l);
-          *row = r + j;
-          *col = c + i;
-        }
-      }
-    }
+    row <<= 1;
+    col <<= 1;
+    // This finds the position of the minimum in the 2x2 square
+    tie(row, col) = min({make_pair(row, col),     make_pair(row + 1, col),
+                         make_pair(row, col + 1), make_pair(row + 1, col + 1)},
+                        [this, &l](const pair<int, int> &a,
+                                   const pair<int, int> &b) {
+                          return val(a.second, a.first, l)
+                              < val(b.second, b.first, l);
+                        });
   }
+  return {row, col};
 }
 
 void WeightMap::IncreaseWeights(const Image &weights, int row0, int col0) {
@@ -94,14 +94,14 @@ void WeightMap::IncreaseWeights(const Image &weights, int row0, int col0) {
   int firstcol = max(0, col0);
   int lastcol = min(width(), col0 + weights.columns()) - 1;
 
+  // Updates the level zero
   for (int row = firstrow; row <= lastrow; ++row) {
     for (int col = firstcol; col <= lastcol; ++col) {
         val(col, row) += weights.val(col - col0, row - row0);
     }
   }
-  // Updates the tree
+  // Updates the other levels
   for (int l = 1; l < num_levels_; ++l) {
-    // Updates the level l
     for (int row = firstrow >> l; row <= lastrow >> l; ++row) {
       for (int col = firstcol >> l; col <= lastcol >> l; ++col) {
         int dc = col << 1, dr = row << 1;

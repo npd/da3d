@@ -22,7 +22,7 @@ class WeightMap {
   ~WeightMap() = default;
   void Init(int rows, int columns);
   float Minimum() const;
-  void FindMinimum(int *row, int *col) const;
+  std::pair<int, int> FindMinimum() const;
   void IncreaseWeights(const Image &weights, int row0, int col0);
   int width() const { return width_; }
   int height() const { return height_; }
