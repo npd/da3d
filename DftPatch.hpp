@@ -52,10 +52,10 @@ inline DftPatch::DftPatch(int rows, int columns, int channels)
   {
     plan_forward_ = fftwf_plan_many_dft(2, n, channels, space_, NULL, channels,
                                         1, freq_, NULL, channels, 1,
-                                        FFTW_FORWARD, FFTW_ESTIMATE);
+                                        FFTW_FORWARD, FFTW_MEASURE);
     plan_backward_ = fftwf_plan_many_dft(2, n, channels, freq_, NULL, channels,
                                          1, space_, NULL, channels, 1,
-                                         FFTW_BACKWARD, FFTW_ESTIMATE);
+                                         FFTW_BACKWARD, FFTW_MEASURE);
   }
 }
 
