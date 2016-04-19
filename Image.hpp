@@ -57,7 +57,7 @@ class Image {
   int rows_{0};
   int columns_{0};
   int channels_{0};
-  std::vector<float> data_;
+  std::vector<float> data_{};
 };
 
 inline Image::Image(int rows, int columns, int channels, float val)

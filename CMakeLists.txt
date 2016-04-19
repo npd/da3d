@@ -50,7 +50,7 @@ endif ()
 
 # Enable Eigen
 find_path (EIGEN3_INCLUDE_DIR NAMES signature_of_eigen3_matrix_library PATH_SUFFIXES eigen3 eigen)
-include_directories (PUBLIC ${EIGEN_INCLUDE_DIR})
+include_directories (PUBLIC ${EIGEN3_INCLUDE_DIR})
 if (NOT EIGEN3_INCLUDE_DIR)
   message (FATAL_ERROR "Eigen3 not found.")
 endif ()

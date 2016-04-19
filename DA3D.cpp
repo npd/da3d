@@ -1,10 +1,11 @@
+#include <algorithm>
+#include <cmath>
 #include "Image.hpp"
+#include "EigenImage.hpp"
 #include "DA3D.hpp"
 #include "WeightMap.hpp"
 #include "Utils.hpp"
 #include "DftPatch.hpp"
-#include <algorithm>
-#include <cmath>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -36,9 +37,9 @@ Image ColorTransform(Image&& src) {
         r = img.val(col, row, 0);
         g = img.val(col, row, 1);
         b = img.val(col, row, 2);
-        img.val(col, row, 0) = (r + g + b) / sqrt(3);
-        img.val(col, row, 1) = (r - b) / sqrt(2);
-        img.val(col, row, 2) = (r - 2 * g + b) / sqrt(6);
+        img.val(col, row, 0) = (r + g + b) / sqrt(3.f);
+        img.val(col, row, 1) = (r - b) / sqrt(2.f);
+        img.val(col, row, 2) = (r - 2 * g + b) / sqrt(6.f);
       }
     }
   }
@@ -54,9 +55,9 @@ Image ColorTransformInverse(Image&& src) {
         y = img.val(col, row, 0);
         u = img.val(col, row, 1);
         v = img.val(col, row, 2);
-        img.val(col, row, 0) = (sqrt(2) * y + sqrt(3) * u + v) / sqrt(6);
-        img.val(col, row, 1) = (y - sqrt(2) * v) / sqrt(3);
-        img.val(col, row, 2) = (sqrt(2) * y - sqrt(3) * u + v) / sqrt(6);
+        img.val(col, row, 0) = (sqrt(2.f) * y + sqrt(3.f) * u + v) / sqrt(6.f);
+        img.val(col, row, 1) = (y - sqrt(2.f) * v) / sqrt(3.f);
+        img.val(col, row, 2) = (sqrt(2.f) * y - sqrt(3.f) * u + v) / sqrt(6.f);
       }
     }
   }
@@ -64,17 +65,6 @@ Image ColorTransformInverse(Image&& src) {
 }
 
 void ExtractPatch(const Image &src, int pr, int pc, Image *dst) {
-  // src is padded, so (pr, pc) becomes the upper left pixel
-  for (int row = 0; row < dst->rows(); ++row) {
-    for (int col = 0; col < dst->columns(); ++col) {
-      for (int chan = 0; chan < dst->channels(); ++chan) {
-        dst->val(col, row, chan) = src.val(pc + col, pr + row, chan);
-      }
-    }
-  }
-}
-
-void FastExtractPatch(const Image &src, int pr, int pc, Image *dst) {
   // src is padded, so (pr, pc) becomes the upper left pixel
   int i = 0, j = (pr * src.columns() + pc) * src.channels();
   for (int row = 0; row < dst->rows();
@@ -108,7 +98,7 @@ void ComputeRegressionPlane(const Image &y,
                             const Image &g,
                             const Image &k,
                             int r,
-                            float reg_plane[][2]) {
+                            vector<pair<float, float>> reg_plane) {
   float a = 0.f, b = 0.f, c = 0.f;
   for (int row = 0; row < y.rows(); ++row) {
     for (int col = 0; col < y.columns(); ++col) {
@@ -118,10 +108,9 @@ void ComputeRegressionPlane(const Image &y,
     }
   }
   float det = a * c - b * b;
-  if (det == 0) {
+  if (det < 0.001f) {
     for (int chan = 0; chan < y.channels(); ++chan) {
-      reg_plane[chan][0] = 0.f;
-      reg_plane[chan][1] = 0.f;
+      reg_plane[chan] = {0.f, 0.f};
     }
   } else {
     for (int chan = 0; chan < y.channels(); ++chan) {
@@ -137,29 +126,17 @@ void ComputeRegressionPlane(const Image &y,
       // |a   b| |x1|   |d|
       // |     | |  | = | |
       // |b   c| |x2|   |e|
-      reg_plane[chan][0] = (c * d - b * e) / det;
-      reg_plane[chan][1] = (a * e - b * d) / det;
+      reg_plane[chan] = {(c * d - b * e) / det, (a * e - b * d) / det};
     }
   }
 }
 
-void SubtractPlane(int r, float reg_plane[][2], Image *y) {
+void SubtractPlane(int r, vector<pair<float, float>> reg_plane, Image *y) {
   for (int row = 0; row < y->rows(); ++row) {
     for (int col = 0; col < y->columns(); ++col) {
       for (int chan = 0; chan < y->channels(); ++chan) {
         y->val(col, row, chan) -=
-            reg_plane[chan][0] * (row - r) + reg_plane[chan][1] * (col - r);
-      }
-    }
-  }
-}
-
-void AddPlane(int r, float reg_plane[][2], Image *y) {
-  for (int row = 0; row < y->rows(); ++row) {
-    for (int col = 0; col < y->columns(); ++col) {
-      for (int chan = 0; chan < y->channels(); ++chan) {
-        y->val(col, row, chan) +=
-            reg_plane[chan][0] * (row - r) + reg_plane[chan][1] * (col - r);
+            reg_plane[chan].first * (row - r) + reg_plane[chan].second * (col - r);
       }
     }
   }
@@ -219,7 +196,7 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
   DftPatch y_m(s, s, guide.channels());
   DftPatch g_m(s, s, guide.channels());
   int pr, pc;  // coordinates of the central pixel
-  float reg_plane[guide.channels()][2];  // parameters of the regression plane
+  vector<pair<float, float>> reg_plane(guide.channels());  // parameters of the regression plane
   float yt[guide.channels()];  // weighted average of the patch
   WeightMap agg_weights(guide.rows() - s + 1, guide.columns() - s + 1);  // line 1
 
@@ -229,8 +206,8 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
   // main loop
   while (agg_weights.Minimum() < threshold) {  // line 4
     tie(pr, pc) = agg_weights.FindMinimum();  // line 5
-    FastExtractPatch(noisy, pr, pc, &y);  // line 6
-    FastExtractPatch(guide, pr, pc, &g);  // line 7
+    ExtractPatch(noisy, pr, pc, &y);  // line 6
+    ExtractPatch(guide, pr, pc, &g);  // line 7
     BilateralWeight(g, &k_reg, r, gamma_rr_sigma2, sigma_sr2);  // line 8
     ComputeRegressionPlane(y, g, k_reg, r, reg_plane);  // line 9
     SubtractPlane(r, reg_plane, &y);  // line 10
@@ -268,8 +245,8 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
       for (int col = 0; col < s; ++col) {
         for (int chan = 0; chan < output.channels(); ++chan) {
           output.val(col + pc, row + pr, chan) +=
-              (y_m.space(col, row, chan) + (reg_plane[chan][0] * (row - r)
-                  + reg_plane[chan][1] * (col - r)) * k.val(col, row)
+              (y_m.space(col, row, chan) + (reg_plane[chan].first * (row - r)
+                  + reg_plane[chan].second * (col - r)) * k.val(col, row)
                   - (1.f - k.val(col, row)) * yt[chan]) * k.val(col, row);
         }
         k.val(col, row) *= k.val(col, row);  // line 22
