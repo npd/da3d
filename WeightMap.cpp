@@ -8,6 +8,8 @@
 #include <cassert>
 #include <limits>
 #include <cstdlib>
+#include <utility>
+#include <tuple>
 #include <algorithm>
 #include "WeightMap.hpp"
 #include "Image.hpp"

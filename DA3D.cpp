@@ -1,7 +1,8 @@
-#include <algorithm>
 #include <cmath>
+#include <tuple>
+#include <utility>
+#include <algorithm>
 #include "Image.hpp"
-#include "EigenImage.hpp"
 #include "DA3D.hpp"
 #include "WeightMap.hpp"
 #include "Utils.hpp"
@@ -18,6 +19,7 @@ using std::pair;
 using std::tie;
 using std::move;
 using std::sqrt;
+using std::abs;
 using utils::fastexp;
 using utils::NextPowerOf2;
 using utils::ComputeTiling;
@@ -94,6 +96,12 @@ void BilateralWeight(const Image &g,
   }
 }
 
+float SumWeight(const Image &k) {
+  float w = 0.f;
+  for (const float& v : k) w += v;
+  return w;
+}
+
 void ComputeRegressionPlane(const Image &y,
                             const Image &g,
                             const Image &k,
@@ -108,7 +116,7 @@ void ComputeRegressionPlane(const Image &y,
     }
   }
   float det = a * c - b * b;
-  if (det < 0.001f) {
+  if (abs(det) < 0.001f) {
     for (int chan = 0; chan < y.channels(); ++chan) {
       reg_plane[chan] = {0.f, 0.f};
     }
@@ -213,44 +221,60 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
     SubtractPlane(r, reg_plane, &y);  // line 10
     SubtractPlane(r, reg_plane, &g);  // line 11
     BilateralWeight(g, &k, r, gamma_r_sigma2, sigma_s2);  // line 12
-    ModifyPatch(y, k, &y_m, yt);  // line 13
-    ModifyPatch(g, k, &g_m);  // line 14
-    y_m.ToFreq();  // line 15
-    g_m.ToFreq();  // line 16
-    float sigma_f2 = 0.f;
-    for (int row = 0; row < k.rows(); ++row) {
-      for (int col = 0; col < k.columns(); ++col) {
-        sigma_f2 += k.val(col, row) * k.val(col, row);
+    if (SumWeight(k) < 10.f) {
+      for (float& v : k) v *= v;  // Square the weights
+      for (int row = 0; row < s; ++row) {
+        for (int col = 0; col < s; ++col) {
+          for (int chan = 0; chan < output.channels(); ++chan) {
+            output.val(col + pc, row + pr, chan) +=
+                (g.val(col, row, chan) + reg_plane[chan].first * (row - r)
+                    + reg_plane[chan].second * (col - r)) * k.val(col, row);
+          }
+          weights.val(col + pc, row + pr) += k.val(col, row);
+        }
       }
-    }
-    sigma_f2 *= sigma2;  // line 17
-    for (int row = 0; row < y_m.frows(); ++row) {
-      for (int col = 0; col < y_m.fcolumns(); ++col) {
-        for (int chan = 0; chan < y_m.channels(); ++chan) {
-          if (row || col) {
-            float G2 = g_m.freq(col, row, chan)[0] * g_m.freq(col, row, chan)[0]
-                + g_m.freq(col, row, chan)[1] * g_m.freq(col, row, chan)[1];
-            float K = utils::fastexp(-gamma_f * sigma_f2 / G2);  // line 18
-            y_m.freq(col, row, chan)[0] *= K;
-            y_m.freq(col, row, chan)[1] *= K;
+    } else {
+      ModifyPatch(y, k, &y_m, yt);  // line 13
+      ModifyPatch(g, k, &g_m);  // line 14
+      y_m.ToFreq();  // line 15
+      g_m.ToFreq();  // line 16
+      float sigma_f2 = 0.f;
+      for (int row = 0; row < k.rows(); ++row) {
+        for (int col = 0; col < k.columns(); ++col) {
+          sigma_f2 += k.val(col, row) * k.val(col, row);
+        }
+      }
+      sigma_f2 *= sigma2;  // line 17
+      for (int row = 0; row < y_m.frows(); ++row) {
+        for (int col = 0; col < y_m.fcolumns(); ++col) {
+          for (int chan = 0; chan < y_m.channels(); ++chan) {
+            if (row || col) {
+              float G2 =
+                  g_m.freq(col, row, chan)[0] * g_m.freq(col, row, chan)[0]
+                      + g_m.freq(col, row, chan)[1]
+                          * g_m.freq(col, row, chan)[1];
+              float K = utils::fastexp(-gamma_f * sigma_f2 / G2);  // line 18
+              y_m.freq(col, row, chan)[0] *= K;
+              y_m.freq(col, row, chan)[1] *= K;
+            }
           }
         }
       }
-    }
-    y_m.ToSpace();  // line 19
+      y_m.ToSpace();  // line 19
 
-    // lines 20,21,25
-    // col and row are the "internal" indexes (with respect to the patch).
-    for (int row = 0; row < s; ++row) {
-      for (int col = 0; col < s; ++col) {
-        for (int chan = 0; chan < output.channels(); ++chan) {
-          output.val(col + pc, row + pr, chan) +=
-              (y_m.space(col, row, chan) + (reg_plane[chan].first * (row - r)
-                  + reg_plane[chan].second * (col - r)) * k.val(col, row)
-                  - (1.f - k.val(col, row)) * yt[chan]) * k.val(col, row);
+      // lines 20,21,25
+      // col and row are the "internal" indexes (with respect to the patch).
+      for (int row = 0; row < s; ++row) {
+        for (int col = 0; col < s; ++col) {
+          for (int chan = 0; chan < output.channels(); ++chan) {
+            output.val(col + pc, row + pr, chan) += (y_m.space(col, row, chan)
+                + (reg_plane[chan].first * (row - r)
+                    + reg_plane[chan].second * (col - r)) * k.val(col, row)
+                - (1.f - k.val(col, row)) * yt[chan]) * k.val(col, row);
+          }
+          k.val(col, row) *= k.val(col, row);  // line 22
+          weights.val(col + pc, row + pr) += k.val(col, row);
         }
-        k.val(col, row) *= k.val(col, row);  // line 22
-        weights.val(col + pc, row + pr) += k.val(col, row);
       }
     }
     agg_weights.IncreaseWeights(k, pr - r, pc - r);  // line 24
