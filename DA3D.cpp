@@ -106,7 +106,7 @@ void ComputeRegressionPlane(const Image &y,
                             const Image &g,
                             const Image &k,
                             int r,
-                            vector<pair<float, float>> reg_plane) {
+                            vector<pair<float, float>> *reg_plane) {
   float a = 0.f, b = 0.f, c = 0.f;
   for (int row = 0; row < y.rows(); ++row) {
     for (int col = 0; col < y.columns(); ++col) {
@@ -118,7 +118,7 @@ void ComputeRegressionPlane(const Image &y,
   float det = a * c - b * b;
   if (abs(det) < 0.001f) {
     for (int chan = 0; chan < y.channels(); ++chan) {
-      reg_plane[chan] = {0.f, 0.f};
+      (*reg_plane)[chan] = {0.f, 0.f};
     }
   } else {
     for (int chan = 0; chan < y.channels(); ++chan) {
@@ -134,7 +134,7 @@ void ComputeRegressionPlane(const Image &y,
       // |a   b| |x1|   |d|
       // |     | |  | = | |
       // |b   c| |x2|   |e|
-      reg_plane[chan] = {(c * d - b * e) / det, (a * e - b * d) / det};
+      (*reg_plane)[chan] = {(c * d - b * e) / det, (a * e - b * d) / det};
     }
   }
 }
@@ -217,7 +217,7 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
     ExtractPatch(noisy, pr, pc, &y);  // line 6
     ExtractPatch(guide, pr, pc, &g);  // line 7
     BilateralWeight(g, &k_reg, r, gamma_rr_sigma2, sigma_sr2);  // line 8
-    ComputeRegressionPlane(y, g, k_reg, r, reg_plane);  // line 9
+    ComputeRegressionPlane(y, g, k_reg, r, &reg_plane);  // line 9
     SubtractPlane(r, reg_plane, &y);  // line 10
     SubtractPlane(r, reg_plane, &g);  // line 11
     BilateralWeight(g, &k, r, gamma_r_sigma2, sigma_s2);  // line 12
