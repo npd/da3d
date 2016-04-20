@@ -102,6 +102,45 @@ float SumWeight(const Image &k) {
   return w;
 }
 
+void ComputeRegressionPlaneIRLS(const Image &y,
+                                const Image &g,
+                                const Image &k,
+                                int r,
+                                vector<pair<float, float>> *reg_plane,
+                                int iterations = 2) {
+  constexpr float delta = 0.0001f;
+  for (pair<float, float> &v : *reg_plane) v = {0.f, 0.f};
+  for (int chan = 0; chan < y.channels(); ++chan) {
+    float x1 = 0.f, x2 = 0.f;
+    for (int t = 0; t < iterations; ++t) {
+      float a = 0.f, b = 0.f, c = 0.f, d = 0.f, e = 0.f;
+      float central = g.val(r, r, chan);
+      for (int row = 0; row < y.rows(); ++row) {
+        for (int col = 0; col < y.columns(); ++col) {
+          int cc = col - r, rr = row - r;
+          float w = k.val(col, row)
+              / max(delta, (y.val(col, row, chan) - central - x1 * rr - x2 * cc));
+          a += rr * rr * w;
+          b += rr * cc * w;
+          c += cc * cc * w;
+          d += rr * (y.val(col, row, chan) - central) * w;
+          e += cc * (y.val(col, row, chan) - central) * w;
+        }
+      }
+      float det = a * c - b * b;
+      if (abs(det) < delta) break;
+
+      // Solves the system
+      // |a   b| |x1|   |d|
+      // |     | |  | = | |
+      // |b   c| |x2|   |e|
+      x1 = (c * d - b * e) / det;
+      x2 = (a * e - b * d) / det;
+    }
+    (*reg_plane)[chan] = {x1, x2};
+  }
+}
+
 void ComputeRegressionPlane(const Image &y,
                             const Image &g,
                             const Image &k,
