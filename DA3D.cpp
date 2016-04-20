@@ -2,6 +2,7 @@
 #include <tuple>
 #include <utility>
 #include <algorithm>
+#include <numeric>
 #include "Image.hpp"
 #include "DA3D.hpp"
 #include "WeightMap.hpp"
@@ -20,6 +21,8 @@ using std::tie;
 using std::move;
 using std::sqrt;
 using std::abs;
+using std::accumulate;
+using std::norm;
 using utils::fastexp;
 using utils::NextPowerOf2;
 using utils::ComputeTiling;
@@ -94,12 +97,6 @@ void BilateralWeight(const Image &g,
       k->val(col, row) = utils::fastexp(-x);
     }
   }
-}
-
-float SumWeight(const Image &k) {
-  float w = 0.f;
-  for (const float& v : k) w += v;
-  return w;
 }
 
 void ComputeRegressionPlaneIRLS(const Image &y,
@@ -226,14 +223,14 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
                               float sigma, int r, float sigma_s, float gamma_r,
                               float gamma_f, float threshold) {
   // useful values
-  int s = utils::NextPowerOf2(2 * r + 1);
-  float sigma2 = sigma * sigma;
-  float gamma_r_sigma2 = gamma_r * sigma2;
-  float sigma_s2 = sigma_s * sigma_s;
+  const int s = utils::NextPowerOf2(2 * r + 1);
+  const float sigma2 = sigma * sigma;
+  const float gamma_r_sigma2 = gamma_r * sigma2;
+  const float sigma_s2 = sigma_s * sigma_s;
 
   // regression parameters
-  float gamma_rr_sigma2 = gamma_r_sigma2 * 10.f;
-  float sigma_sr2 = sigma_s2 * 2.f;
+  const float gamma_rr_sigma2 = gamma_r_sigma2 * 10.f;
+  const float sigma_sr2 = sigma_s2 * 2.f;
 
   // declaration of internal variables
   Image y(s, s, guide.channels());
@@ -260,7 +257,7 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
     SubtractPlane(r, reg_plane, &y);  // line 10
     SubtractPlane(r, reg_plane, &g);  // line 11
     BilateralWeight(g, &k, r, gamma_r_sigma2, sigma_s2);  // line 12
-    if (SumWeight(k) < 10.f) {
+    if (accumulate(k.begin(), k.end(), 0.f) < 10.f) {
       for (float& v : k) v *= v;  // Square the weights
       for (int row = 0; row < s; ++row) {
         for (int col = 0; col < s; ++col) {
@@ -278,8 +275,8 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
       y_m.ToFreq();  // line 15
       g_m.ToFreq();  // line 16
       float sigma_f2 = 0.f;
-      for (int row = 0; row < k.rows(); ++row) {
-        for (int col = 0; col < k.columns(); ++col) {
+      for (int row = 0; row < s; ++row) {
+        for (int col = 0; col < s; ++col) {
           sigma_f2 += k.val(col, row) * k.val(col, row);
         }
       }
@@ -288,13 +285,9 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
         for (int col = 0; col < y_m.fcolumns(); ++col) {
           for (int chan = 0; chan < y_m.channels(); ++chan) {
             if (row || col) {
-              float G2 =
-                  g_m.freq(col, row, chan)[0] * g_m.freq(col, row, chan)[0]
-                      + g_m.freq(col, row, chan)[1]
-                          * g_m.freq(col, row, chan)[1];
+              float G2 = norm(g_m.freq(col, row, chan));
               float K = utils::fastexp(-gamma_f * sigma_f2 / G2);  // line 18
-              y_m.freq(col, row, chan)[0] *= K;
-              y_m.freq(col, row, chan)[1] *= K;
+              y_m.freq(col, row, chan) *= K;
             }
           }
         }
@@ -306,10 +299,12 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
       for (int row = 0; row < s; ++row) {
         for (int col = 0; col < s; ++col) {
           for (int chan = 0; chan < output.channels(); ++chan) {
-            output.val(col + pc, row + pr, chan) += (y_m.space(col, row, chan)
-                + (reg_plane[chan].first * (row - r)
-                    + reg_plane[chan].second * (col - r)) * k.val(col, row)
-                - (1.f - k.val(col, row)) * yt[chan]) * k.val(col, row);
+            float pij = (row - r) * reg_plane[chan].first
+                        + (col - r) * reg_plane[chan].second;
+            float kij = k.val(col, row);
+            output.val(col + pc, row + pr, chan) +=
+                (y_m.space(col, row, chan) - (1.f - kij) * yt[chan] + pij * kij)
+                    * kij;
           }
           k.val(col, row) *= k.val(col, row);  // line 22
           weights.val(col + pc, row + pr) += k.val(col, row);
@@ -327,7 +322,7 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
 Image DA3D(const Image &noisy, const Image &guide, float sigma, int nthreads,
            int r, float sigma_s, float gamma_r, float gamma_f, float threshold) {
   // padding and color transformation
-  int s = utils::NextPowerOf2(2 * r + 1);
+  const int s = utils::NextPowerOf2(2 * r + 1);
 
 #ifdef _OPENMP
   if (!nthreads) nthreads = omp_get_max_threads();  // number of threads

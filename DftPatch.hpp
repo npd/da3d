@@ -10,6 +10,7 @@
 
 #include <fftw3.h>
 #include <cassert>
+#include <complex>
 
 namespace da3d {
 
@@ -25,11 +26,11 @@ class DftPatch {
   int fcolumns() const { return fcolumns_; }
   int channels() const { return channels_; }
   float& space(int col, int row, int chan = 0);
-  fftwf_complex& freq(int col, int row, int chan = 0);
+  std::complex<float>& freq(int col, int row, int chan = 0);
 
  private:
   float *space_;
-  fftwf_complex *freq_;
+  std::complex<float> *freq_;
   fftwf_plan plan_forward_;
   fftwf_plan plan_backward_;
   int rows_, columns_, fcolumns_, channels_;
@@ -42,7 +43,7 @@ inline float& DftPatch::space(int col, int row, int chan) {
   return space_[row * columns_ * channels_ + col * channels_ + chan];
 }
 
-inline fftwf_complex& DftPatch::freq(int col, int row, int chan) {
+inline std::complex<float>& DftPatch::freq(int col, int row, int chan) {
   assert(0 <= col && col < fcolumns_);
   assert(0 <= row && row < rows_);
   assert(0 <= chan && chan < channels_);
@@ -54,16 +55,18 @@ inline DftPatch::DftPatch(int rows, int columns, int channels)
   int N = rows * columns * channels;
   int N_half = rows * fcolumns_ * channels;
   space_ = reinterpret_cast<float *>(fftwf_malloc(sizeof(float) * N));
-  freq_ = reinterpret_cast<fftwf_complex *>(fftwf_malloc(
+  freq_ = reinterpret_cast<std::complex<float> *>(fftwf_malloc(
       sizeof(fftwf_complex) * N_half));
   int n[] = {rows, columns};
 #pragma omp critical
   {
     plan_forward_ = fftwf_plan_many_dft_r2c(2, n, channels, space_, NULL,
-                                            channels, 1, freq_, NULL, channels,
-                                            1, FFTW_MEASURE);
-    plan_backward_ = fftwf_plan_many_dft_c2r(2, n, channels, freq_, NULL,
-                                             channels, 1, space_, NULL,
+                                            channels, 1,
+                                            reinterpret_cast<fftwf_complex *>(freq_),
+                                            NULL, channels, 1, FFTW_MEASURE);
+    plan_backward_ = fftwf_plan_many_dft_c2r(2, n, channels,
+                                             reinterpret_cast<fftwf_complex *>(freq_),
+                                             NULL, channels, 1, space_, NULL,
                                              channels, 1, FFTW_MEASURE);
   }
 }
