@@ -23,11 +23,11 @@ using da3d::DA3D;
 int main(int argc, char **argv) {
   int nthreads = atoi(pick_option(&argc, argv, "nt", "0"));
   int r = atoi(pick_option(&argc, argv, "r", "31"));
-  float sigma_s = atof(pick_option(&argc, argv, "sigma_s", "14"));
-  float gamma_r = atof(pick_option(&argc, argv, "gamma_r", ".7"));
-  float gamma_f = atof(pick_option(&argc, argv, "gamma_f", ".8"));
-  float threshold = atof(pick_option(&argc, argv, "threshold", "2"));
-  bool usage = pick_option(&argc, argv, "h", nullptr);
+  float sigma_s = static_cast<float>(atof(pick_option(&argc, argv, "sigma_s", "14")));
+  float gamma_r = static_cast<float>(atof(pick_option(&argc, argv, "gamma_r", ".7")));
+  float gamma_f = static_cast<float>(atof(pick_option(&argc, argv, "gamma_f", ".8")));
+  float threshold = static_cast<float>(atof(pick_option(&argc, argv, "threshold", "2")));
+  bool usage = static_cast<bool>(pick_option(&argc, argv, "h", nullptr));
   if (usage || argc < 4) {
     cerr << "usage: " << argv[0] << " input guide sigma [output]" << endl;
     return EXIT_FAILURE;

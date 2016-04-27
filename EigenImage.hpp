@@ -6,6 +6,7 @@
 #define EIGENIMAGE_HPP_
 
 #include <Eigen/Core>
+#include <utility>
 #include "Image.hpp"
 
 namespace da3d {
@@ -13,6 +14,7 @@ namespace da3d {
 class EigenImage : public Image {
  public:
   using Image::Image;
+  EigenImage(Image&& src) : Image(std::move(src)) {};
   Eigen::Map<Eigen::VectorXf> asvector() const { return vecmap_; };
   Eigen::Map<Eigen::VectorXf> asvector() { return vecmap_; };
 

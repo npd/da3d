@@ -143,6 +143,7 @@ void ComputeRegressionPlane(const Image &y,
                             const Image &k,
                             int r,
                             vector<pair<float, float>> *reg_plane) {
+  constexpr float delta = 0.0001f;
   float a = 0.f, b = 0.f, c = 0.f;
   for (int row = 0; row < y.rows(); ++row) {
     for (int col = 0; col < y.columns(); ++col) {
@@ -152,7 +153,7 @@ void ComputeRegressionPlane(const Image &y,
     }
   }
   float det = a * c - b * b;
-  if (abs(det) < 0.001f) {
+  if (abs(det) < delta) {
     for (int chan = 0; chan < y.channels(); ++chan) {
       (*reg_plane)[chan] = {0.f, 0.f};
     }
@@ -191,12 +192,7 @@ void ModifyPatch(const Image &patch,
                  DftPatch *modified,
                  float *average = nullptr) {
   // compute the total weight of the mask
-  float weight = 0.f;
-  for (int row = 0; row < k.rows(); ++row) {
-    for (int col = 0; col < k.columns(); ++col) {
-      weight += k.val(col, row);
-    }
-  }
+  float weight = accumulate(k.begin(), k.end(), 0.f);
 
   for (int chan = 0; chan < patch.channels(); ++chan) {
     float avg = 0.f;
@@ -210,7 +206,7 @@ void ModifyPatch(const Image &patch,
       for (int col = 0; col < patch.columns(); ++col) {
         modified->space(col, row, chan) =
             k.val(col, row) * patch.val(col, row, chan)
-                + (1 - k.val(col, row)) * avg;
+                + (1.f - k.val(col, row)) * avg;
       }
     }
     if (average) {
