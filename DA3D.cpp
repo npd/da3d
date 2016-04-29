@@ -20,6 +20,9 @@ using std::pair;
 using std::tie;
 using std::move;
 using std::sqrt;
+using std::log2;
+using std::floor;
+using std::modf;
 using std::abs;
 using std::accumulate;
 using std::norm;
@@ -99,44 +102,44 @@ void BilateralWeight(const Image &g,
   }
 }
 
-void ComputeRegressionPlaneIRLS(const Image &y,
-                                const Image &g,
-                                const Image &k,
-                                int r,
-                                vector<pair<float, float>> *reg_plane,
-                                int iterations = 2) {
-  constexpr float delta = 0.0001f;
-  for (pair<float, float> &v : *reg_plane) v = {0.f, 0.f};
-  for (int chan = 0; chan < y.channels(); ++chan) {
-    float x1 = 0.f, x2 = 0.f;
-    for (int t = 0; t < iterations; ++t) {
-      float a = 0.f, b = 0.f, c = 0.f, d = 0.f, e = 0.f;
-      float central = g.val(r, r, chan);
-      for (int row = 0; row < y.rows(); ++row) {
-        for (int col = 0; col < y.columns(); ++col) {
-          int cc = col - r, rr = row - r;
-          float w = k.val(col, row)
-              / max(delta, (y.val(col, row, chan) - central - x1 * rr - x2 * cc));
-          a += rr * rr * w;
-          b += rr * cc * w;
-          c += cc * cc * w;
-          d += rr * (y.val(col, row, chan) - central) * w;
-          e += cc * (y.val(col, row, chan) - central) * w;
-        }
-      }
-      float det = a * c - b * b;
-      if (abs(det) < delta) break;
-
-      // Solves the system
-      // |a   b| |x1|   |d|
-      // |     | |  | = | |
-      // |b   c| |x2|   |e|
-      x1 = (c * d - b * e) / det;
-      x2 = (a * e - b * d) / det;
-    }
-    (*reg_plane)[chan] = {x1, x2};
-  }
-}
+//void ComputeRegressionPlaneIRLS(const Image &y,
+//                                const Image &g,
+//                                const Image &k,
+//                                int r,
+//                                vector<pair<float, float>> *reg_plane,
+//                                int iterations = 2) {
+//  constexpr float delta = 0.0001f;
+//  for (pair<float, float> &v : *reg_plane) v = {0.f, 0.f};
+//  for (int chan = 0; chan < y.channels(); ++chan) {
+//    float x1 = 0.f, x2 = 0.f;
+//    for (int t = 0; t < iterations; ++t) {
+//      float a = 0.f, b = 0.f, c = 0.f, d = 0.f, e = 0.f;
+//      float central = g.val(r, r, chan);
+//      for (int row = 0; row < y.rows(); ++row) {
+//        for (int col = 0; col < y.columns(); ++col) {
+//          int cc = col - r, rr = row - r;
+//          float w = k.val(col, row)
+//              / max(delta, (y.val(col, row, chan) - central - x1 * rr - x2 * cc));
+//          a += rr * rr * w;
+//          b += rr * cc * w;
+//          c += cc * cc * w;
+//          d += rr * (y.val(col, row, chan) - central) * w;
+//          e += cc * (y.val(col, row, chan) - central) * w;
+//        }
+//      }
+//      float det = a * c - b * b;
+//      if (abs(det) < delta) break;
+//
+//      // Solves the system
+//      // |a   b| |x1|   |d|
+//      // |     | |  | = | |
+//      // |b   c| |x2|   |e|
+//      x1 = (c * d - b * e) / det;
+//      x2 = (a * e - b * d) / det;
+//    }
+//    (*reg_plane)[chan] = {x1, x2};
+//  }
+//}
 
 void ComputeRegressionPlane(const Image &y,
                             const Image &g,
@@ -215,9 +218,14 @@ void ModifyPatch(const Image &patch,
   }
 }
 
-pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
-                              float sigma, int r, float sigma_s, float gamma_r,
-                              float gamma_f, float threshold) {
+pair<Image, Image> DA3D_block(const Image &noisy,
+                              const Image &guide,
+                              float sigma,
+                              const vector<float> &K_lut,
+                              int r,
+                              float sigma_s,
+                              float gamma_r,
+                              float threshold) {
   // useful values
   const int s = utils::NextPowerOf2(2 * r + 1);
   const float sigma2 = sigma * sigma;
@@ -281,8 +289,17 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
         for (int col = 0; col < y_m.fcolumns(); ++col) {
           for (int chan = 0; chan < y_m.channels(); ++chan) {
             if (row || col) {
-              float G2 = norm(g_m.freq(col, row, chan));
-              float K = utils::fastexp(-gamma_f * sigma_f2 / G2);  // line 18
+              float x = norm(g_m.freq(col, row, chan)) / sigma_f2;
+              // float K = utils::fastexp(-gamma_f / x);  // line 18
+              float K;
+              if (x >= 2.f) {
+                K = 1.f;
+              } else {
+                float in;
+                float fr = modf(3 * x, &in);
+                int i = static_cast<int>(in);
+                K = K_lut[i] * (1.f - fr) + K_lut[i + 1] * fr;
+              }
               y_m.freq(col, row, chan) *= K;
             }
           }
@@ -315,8 +332,8 @@ pair<Image, Image> DA3D_block(const Image &noisy, const Image &guide,
 
 }  // namespace
 
-Image DA3D(const Image &noisy, const Image &guide, float sigma, int nthreads,
-           int r, float sigma_s, float gamma_r, float gamma_f, float threshold) {
+Image DA3D(const Image &noisy, const Image &guide, float sigma, const vector<float> &K_lut, int nthreads,
+           int r, float sigma_s, float gamma_r, float threshold) {
   // padding and color transformation
   const int s = utils::NextPowerOf2(2 * r + 1);
 
@@ -333,8 +350,14 @@ Image DA3D(const Image &noisy, const Image &guide, float sigma, int nthreads,
 
 #pragma omp parallel for num_threads(nthreads)
   for (int i = 0; i < nthreads; ++i) {
-    result_tiles[i] = DA3D_block(noisy_tiles[i], guide_tiles[i], sigma, r,
-                                 sigma_s, gamma_r, gamma_f, threshold);
+    result_tiles[i] = DA3D_block(noisy_tiles[i],
+                                 guide_tiles[i],
+                                 sigma,
+                                 K_lut,
+                                 r,
+                                 sigma_s,
+                                 gamma_r,
+                                 threshold);
   }
   return ColorTransformInverse(MergeTiles(result_tiles, guide.shape(), r, s - r - 1, tiling));
 }
