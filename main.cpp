@@ -56,7 +56,17 @@ int main(int argc, char **argv) {
   Image input = read_image(argv[1]);
   Image guide = read_image(argv[2]);
   float sigma = static_cast<float>(atof(argv[3]));
-  std::vector<float> K_lut = {0.f,  // 0
+  std::vector<float> K_high = {0.f,  // 0
+                               0.f,  // 0.25
+                               0.25f,  // 0.5
+                               0.5f,  // 0.75
+                               0.75f,  // 1
+                               0.1f,  // 1.25
+                               1.f,  // 1.5
+                               1.f,  // 1.75
+                               1.f,  // 2
+  };
+  std::vector<float> K_low = {0.f,  // 0
                               0.f,  // 0.25
                               0.25f,  // 0.5
                               0.5f,  // 0.75
@@ -69,17 +79,17 @@ int main(int argc, char **argv) {
   if (strlen(optimize)) {
     Image reference = read_image(optimize);
     for (int j = 0; j < 10; ++j) {
-      for (float &v : K_lut) {
+      for (float &v : K_high) {
         float a = 0.f, b = 1.f, c;
         v = a;
-        double msea = mse(reference, DA3D(input, guide, sigma, K_lut));
+        double msea = mse(reference, DA3D(input, guide, sigma, K_high, K_low));
         v = b;
-        double mseb = mse(reference, DA3D(input, guide, sigma, K_lut));
+        double mseb = mse(reference, DA3D(input, guide, sigma, K_high, K_low));
         double msec;
         for (int i = 0; i < 5 + j; ++i) {
           c = 0.5f * (a + b);
           v = c;
-          msec = mse(reference, DA3D(input, guide, sigma, K_lut));
+          msec = mse(reference, DA3D(input, guide, sigma, K_high, K_low));
           if (msea < mseb) {
             b = c;
             mseb = msec;
@@ -90,12 +100,38 @@ int main(int argc, char **argv) {
         }
         if (msea < msec) v = a;
         if (mseb <= msec) v = b;
-        copy(K_lut.begin(), K_lut.end(), ostream_iterator<float>(cerr, " "));
-        cerr << endl;
+        cerr << "High: ";
+        copy(K_high.begin(), K_high.end(), ostream_iterator<float>(cerr, " "));
+        cerr << " MSE " << msec << endl;
+      }
+      for (float &v : K_low) {
+        float a = 0.f, b = 1.f, c;
+        v = a;
+        double msea = mse(reference, DA3D(input, guide, sigma, K_high, K_low));
+        v = b;
+        double mseb = mse(reference, DA3D(input, guide, sigma, K_high, K_low));
+        double msec;
+        for (int i = 0; i < 5 + j; ++i) {
+          c = 0.5f * (a + b);
+          v = c;
+          msec = mse(reference, DA3D(input, guide, sigma, K_high, K_low));
+          if (msea < mseb) {
+            b = c;
+            mseb = msec;
+          } else {
+            a = c;
+            msea = msec;
+          }
+        }
+        if (msea < msec) v = a;
+        if (mseb <= msec) v = b;
+        cerr << "Low: ";
+        copy(K_low.begin(), K_low.end(), ostream_iterator<float>(cerr, " "));
+        cerr << " MSE " << msec << endl;
       }
     }
   }
-  Image output = DA3D(input, guide, sigma, K_lut, nthreads, r, sigma_s,
+  Image output = DA3D(input, guide, sigma, K_high, K_low, nthreads, r, sigma_s,
                       gamma_r, threshold);
   save_image(output, argc > 4 ? argv[4] : "-");
 }
