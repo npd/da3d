@@ -58,10 +58,10 @@ int main(int argc, char **argv) {
   float sigma = static_cast<float>(atof(argv[3]));
   std::vector<float> K_lut = {0.f,  // 0
                               0.f,  // 0.25
-                              0.f,  // 0.5
-                              0.f,  // 0.75
-                              0.14f,  // 1
-                              0.9f,  // 1.25
+                              0.25f,  // 0.5
+                              0.5f,  // 0.75
+                              0.75f,  // 1
+                              0.1f,  // 1.25
                               1.f,  // 1.5
                               1.f,  // 1.75
                               1.f,  // 2
@@ -94,9 +94,8 @@ int main(int argc, char **argv) {
         cerr << endl;
       }
     }
-  } else {
-    Image output = DA3D(input, guide, sigma, K_lut, nthreads, r, sigma_s,
-                        gamma_r, threshold);
-    save_image(output, argc > 4 ? argv[4] : "-");
   }
+  Image output = DA3D(input, guide, sigma, K_lut, nthreads, r, sigma_s,
+                      gamma_r, threshold);
+  save_image(output, argc > 4 ? argv[4] : "-");
 }
