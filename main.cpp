@@ -66,55 +66,55 @@ int main(int argc, char **argv) {
                                0.f,  // 0.25
                                0.f,  // 0.5
                                0.f,  // 0.75
-                               1.f,  // 1
+                               0.f,  // 1
                                1.f,  // 1.25
                                1.f,  // 1.5
                                1.f,  // 1.75
                                1.f,  // 2
   };
   std::vector<float> K_low = {0.f,  // 0
-                              0.34f,  // 0.25
-                              0.7f,  // 0.5
-                              0.8f,  // 0.75
-                              0.9f,  // 1
-                              1.f,  // 1.25
-                              1.f,  // 1.5
-                              1.f,  // 1.75
+                              0.17f,  // 0.25
+                              0.17f,  // 0.5
+                              0.27f,  // 0.75
+                              0.49f,  // 1
+                              0.63f,  // 1.25
+                              0.73f,  // 1.5
+                              0.83f,  // 1.75
                               1.f,  // 2
   };
 
-  for (int j = 0; j < 10; ++j) {
-    for (float &v : K_high) {
-      float a = 0.f, b = 1.f, c;
-      v = a;
-      double msea = 0.;
-      for (unsigned k = 0; k < input.size(); ++k)
-        msea += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-      v = b;
-      double mseb = 0.;
-      for (unsigned k = 0; k < input.size(); ++k)
-        mseb += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-      double msec;
-      for (int i = 0; i < 5 + j; ++i) {
-        c = 0.5f * (a + b);
-        v = c;
-        msec = 0.;
-        for (unsigned k = 0; k < input.size(); ++k)
-          msec += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-        if (msea < mseb) {
-          b = c;
-          mseb = msec;
-        } else {
-          a = c;
-          msea = msec;
-        }
-      }
-      if (msea < msec) v = a;
-      if (mseb <= msec) v = b;
-      cerr << "High: ";
-      copy(K_high.begin(), K_high.end(), ostream_iterator<float>(cerr, " "));
-      cerr << " MSE " << msec << endl;
-    }
+  for (int j = 0; j < 5; ++j) {
+//    for (float &v : K_high) {
+//      float a = 0.f, b = 1.f, c;
+//      v = a;
+//      double msea = 0.;
+//      for (unsigned k = 0; k < input.size(); ++k)
+//        msea += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+//      v = b;
+//      double mseb = 0.;
+//      for (unsigned k = 0; k < input.size(); ++k)
+//        mseb += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+//      double msec;
+//      for (int i = 0; i < 5 + j; ++i) {
+//        c = 0.5f * (a + b);
+//        v = c;
+//        msec = 0.;
+//        for (unsigned k = 0; k < input.size(); ++k)
+//          msec += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+//        if (msea < mseb) {
+//          b = c;
+//          mseb = msec;
+//        } else {
+//          a = c;
+//          msea = msec;
+//        }
+//      }
+//      if (msea < msec) v = a;
+//      if (mseb <= msec) v = b;
+//      cerr << "High: ";
+//      copy(K_high.begin(), K_high.end(), ostream_iterator<float>(cerr, " "));
+//      cerr << " MSE " << msec << endl;
+//    }
     for (float &v : K_low) {
       float a = 0.f, b = 1.f, c;
       v = a;
@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
       for (unsigned k = 0; k < input.size(); ++k)
         mseb += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
       double msec;
-      for (int i = 0; i < 5 + j; ++i) {
+      for (int i = 0; i < 10 + j; ++i) {
         c = 0.5f * (a + b);
         v = c;
         msec = 0.;
