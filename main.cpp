@@ -40,8 +40,9 @@ double mse(const Image &im1, const Image &im2) {
 
 int main(int argc, char **argv) {
   bool usage = static_cast<bool>(pick_option(&argc, argv, "h", nullptr));
+  bool only_psnr = static_cast<bool>(pick_option(&argc, argv, "p", nullptr));
   if (usage || argc < 4) {
-    cerr << "usage: " << argv[0] << " guide noise filenames" << endl;
+    cerr << "usage: " << argv[0] << " guide noise filenames [-p]" << endl;
     return EXIT_FAILURE;
   }
 
@@ -83,72 +84,86 @@ int main(int argc, char **argv) {
                               1.f,  // 2
   };
 
-  for (int j = 0; j < 2; ++j) {
-//    for (float &v : K_high) {
-//      float a = 0.f, b = 1.f, c;
-//      v = a;
-//      double msea = 0.;
-//      for (unsigned k = 0; k < input.size(); ++k)
-//        msea += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-//      v = b;
-//      double mseb = 0.;
-//      for (unsigned k = 0; k < input.size(); ++k)
-//        mseb += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-//      double msec;
-//      for (int i = 0; i < 5 + j; ++i) {
-//        c = 0.5f * (a + b);
-//        v = c;
-//        msec = 0.;
-//        for (unsigned k = 0; k < input.size(); ++k)
-//          msec += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-//        if (msea < mseb) {
-//          b = c;
-//          mseb = msec;
-//        } else {
-//          a = c;
-//          msea = msec;
-//        }
-//      }
-//      if (msea < msec) v = a;
-//      if (mseb <= msec) v = b;
-//      cerr << "High: ";
-//      copy(K_high.begin(), K_high.end(), ostream_iterator<float>(cerr, " "));
-//      cerr << " MSE " << msec << endl;
-//    }
-    for (float &v : K_low) {
-      float a = 0.f, b = 1.f, c;
-      v = a;
-      double msea = 0.;
-      for (unsigned k = 0; k < input.size(); ++k)
-        msea += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-      v = b;
-      double mseb = 0.;
-      for (unsigned k = 0; k < input.size(); ++k)
-        mseb += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-      double msec;
-      for (int i = 0; i < 10; ++i) {
-        c = 0.5f * (a + b);
-        v = c;
-        msec = 0.;
+  if (only_psnr) {
+    double m = 0.;
+    for (unsigned k = 0; k < input.size(); ++k)
+      m += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+    cerr << "MSE " << m << endl;
+  } else {
+    for (int j = 0; j < 2; ++j) {
+      for (float &v : K_high) {
+        float a = 0.f, b = 1.f, c;
+        v = a;
+        double msea = 0.;
         for (unsigned k = 0; k < input.size(); ++k)
-          msec += mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
-        if (msea < mseb) {
-          b = c;
-          mseb = msec;
-        } else {
-          a = c;
-          msea = msec;
+          msea +=
+              mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+        v = b;
+        double mseb = 0.;
+        for (unsigned k = 0; k < input.size(); ++k)
+          mseb +=
+              mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+        double msec;
+        for (int i = 0; i < 5 + j; ++i) {
+          c = 0.5f * (a + b);
+          v = c;
+          msec = 0.;
+          for (unsigned k = 0; k < input.size(); ++k)
+            msec += mse(reference[k],
+                        DA3D(input[k], guide[k], sigma, K_high, K_low));
+          if (msea < mseb) {
+            b = c;
+            mseb = msec;
+          } else {
+            a = c;
+            msea = msec;
+          }
         }
+        if (msea < msec) v = a;
+        if (mseb <= msec) v = b;
+        cerr << "High: ";
+        copy(K_high.begin(), K_high.end(), ostream_iterator<float>(cerr, " "));
+        cerr << " MSE " << msec << endl;
       }
-      if (msea < msec) v = a;
-      if (mseb <= msec) v = b;
-      cerr << "Low: ";
-      copy(K_low.begin(), K_low.end(), ostream_iterator<float>(cerr, " "));
-      cerr << " MSE " << msec << endl;
+      for (float &v : K_low) {
+        float a = 0.f, b = 1.f, c;
+        v = a;
+        double msea = 0.;
+        for (unsigned k = 0; k < input.size(); ++k)
+          msea +=
+              mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+        v = b;
+        double mseb = 0.;
+        for (unsigned k = 0; k < input.size(); ++k)
+          mseb +=
+              mse(reference[k], DA3D(input[k], guide[k], sigma, K_high, K_low));
+        double msec;
+        for (int i = 0; i < 10; ++i) {
+          c = 0.5f * (a + b);
+          v = c;
+          msec = 0.;
+          for (unsigned k = 0; k < input.size(); ++k)
+            msec += mse(reference[k],
+                        DA3D(input[k], guide[k], sigma, K_high, K_low));
+          if (msea < mseb) {
+            b = c;
+            mseb = msec;
+          } else {
+            a = c;
+            msea = msec;
+          }
+        }
+        if (msea < msec) v = a;
+        if (mseb <= msec) v = b;
+        cerr << "Low: ";
+        copy(K_low.begin(), K_low.end(), ostream_iterator<float>(cerr, " "));
+        cerr << " MSE " << msec << endl;
+      }
     }
-  }
-
-  for (unsigned k = 0; k < input.size(); ++k) {
-    save_image(DA3D(input[k], guide[k], sigma, K_high, K_low), string(argv[1]) + "_da3d/" + argv[2] + "/" + argv[k + 3] + ".tiff");
+    for (unsigned k = 0; k < input.size(); ++k) {
+      save_image(DA3D(input[k], guide[k], sigma, K_high, K_low),
+                 string(argv[1]) + "_da3d/" + argv[2] + "/" + argv[k + 3]
+                     + ".tiff");
+    }
   }
 }

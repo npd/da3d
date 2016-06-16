@@ -223,6 +223,7 @@ pair<Image, Image> DA3D_block(const Image &noisy,
                               float sigma,
                               const vector<float> &K_high,
                               const vector<float> &K_low,
+                              bool use_lut,
                               int r,
                               float sigma_s,
                               float gamma_r,
@@ -291,19 +292,23 @@ pair<Image, Image> DA3D_block(const Image &noisy,
           for (int chan = 0; chan < y_m.channels(); ++chan) {
             if (row || col) {
               float x = norm(g_m.freq(col, row, chan)) / sigma_f2;
-              // float K = utils::fastexp(-gamma_f / x);  // line 18
               float K;
-              if (x >= 2.f) {
-                K = 1.f;
-              } else {
-                float in;
-                float fr = modf(4 * x, &in);
-                int i = static_cast<int>(in);
-                if (((16 < row) && (row < s - 16)) || ((16 < col) && (col < s - 16))) {
-                  K = K_high[i] * (1.f - fr) + K_high[i + 1] * fr;
+              if (use_lut) {
+                if (x >= 2.f) {
+                  K = 1.f;
                 } else {
-                  K = K_low[i] * (1.f - fr) + K_low[i + 1] * fr;
+                  float in;
+                  float fr = modf(4 * x, &in);
+                  int i = static_cast<int>(in);
+                  if (((16 < row) && (row < s - 16))
+                      || ((16 < col) && (col < s - 16))) {
+                    K = K_high[i] * (1.f - fr) + K_high[i + 1] * fr;
+                  } else {
+                    K = K_low[i] * (1.f - fr) + K_low[i + 1] * fr;
+                  }
                 }
+              } else {
+                K = utils::fastexp(-.8 / x);  // line 18
               }
               y_m.freq(col, row, chan) *= K;
             }
@@ -337,7 +342,7 @@ pair<Image, Image> DA3D_block(const Image &noisy,
 
 }  // namespace
 
-Image DA3D(const Image &noisy, const Image &guide, float sigma, const vector<float> &K_high, const vector<float> &K_low, int nthreads,
+Image DA3D(const Image &noisy, const Image &guide, float sigma, const vector<float> &K_high, const vector<float> &K_low, bool use_lut, int nthreads,
            int r, float sigma_s, float gamma_r, float threshold) {
   // padding and color transformation
   const int s = utils::NextPowerOf2(2 * r + 1);
@@ -360,6 +365,7 @@ Image DA3D(const Image &noisy, const Image &guide, float sigma, const vector<flo
                                  sigma,
                                  K_high,
                                  K_low,
+                                 use_lut,
                                  r,
                                  sigma_s,
                                  gamma_r,
