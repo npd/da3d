@@ -5,8 +5,8 @@
  *      Author: nicola
  */
 
-#ifndef IMAGE_HPP_
-#define IMAGE_HPP_
+#ifndef DA3D_IMAGE_HPP_
+#define DA3D_IMAGE_HPP_
 
 #include <cassert>
 #include <vector>
@@ -96,4 +96,4 @@ inline float& Image::val(int pos) {
 
 }  // namespace da3d
 
-#endif  // IMAGE_HPP_
+#endif  // DA3D_IMAGE_HPP_

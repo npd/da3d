@@ -5,8 +5,8 @@
  *      Author: nicola
  */
 
-#ifndef UTILS_HPP_
-#define UTILS_HPP_
+#ifndef DA3D_UTILS_HPP_
+#define DA3D_UTILS_HPP_
 
 #include <cstring>
 #include <string>
@@ -64,4 +64,4 @@ da3d::Image MergeTiles(const std::vector<std::pair<da3d::Image, da3d::Image>> &s
                        std::pair<int, int> tiling);
 }  // namespace utils
 
-#endif  // UTILS_HPP_
+#endif  // DA3D_UTILS_HPP_

@@ -5,8 +5,8 @@
  *      Author: nicola
  */
 
-#ifndef WEIGHTMAP_HPP_
-#define WEIGHTMAP_HPP_
+#ifndef DA3D_WEIGHTMAP_HPP_
+#define DA3D_WEIGHTMAP_HPP_
 
 #include <cassert>
 #include <vector>
@@ -52,4 +52,4 @@ inline float &WeightMap::val(int col, int row, int level) {
 
 }  // namespace da3d
 
-#endif  // WEIGHTMAP_HPP_
+#endif  // DA3D_WEIGHTMAP_HPP_

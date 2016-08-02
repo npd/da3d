@@ -5,8 +5,8 @@
  *      Author: nicola
  */
 
-#ifndef DFTPATCH_HPP_
-#define DFTPATCH_HPP_
+#ifndef DA3D_DFTPATCH_HPP_
+#define DA3D_DFTPATCH_HPP_
 
 #include <fftw3.h>
 #include <cassert>
@@ -91,4 +91,4 @@ inline void DftPatch::ToSpace() {
 
 } /* namespace da3d */
 
-#endif /* DFTPATCH_HPP_ */
+#endif  // DA3D_DFTPATCH_HPP_

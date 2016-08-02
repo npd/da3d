@@ -5,8 +5,8 @@
  *      Author: nicola
  */
 
-#ifndef DA3D_HPP_
-#define DA3D_HPP_
+#ifndef DA3D_DA3D_HPP_
+#define DA3D_DA3D_HPP_
 
 #include "Image.hpp"
 
@@ -19,4 +19,4 @@ Image DA3D(const Image &noisy, const Image &guide, float sigma,
 
 }  // namespace da3d
 
-#endif  // DA3D_HPP_
+#endif  // DA3D_DA3D_HPP_
