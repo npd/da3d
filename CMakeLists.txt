@@ -48,13 +48,6 @@ if (NOT FFTW_INCLUDE_DIR)
   message (FATAL_ERROR "FFTW3 not found.")
 endif ()
 
-# Enable Eigen
-find_path (EIGEN3_INCLUDE_DIR NAMES signature_of_eigen3_matrix_library PATH_SUFFIXES eigen3 eigen)
-include_directories (PUBLIC ${EIGEN3_INCLUDE_DIR})
-if (NOT EIGEN3_INCLUDE_DIR)
-  message (FATAL_ERROR "Eigen3 not found.")
-endif ()
-
 # Link LibTIFF, LibJPEG, LibPNG
 find_package (TIFF REQUIRED)
 find_package (JPEG REQUIRED)
@@ -64,4 +57,4 @@ link_libraries (${TIFF_LIBRARIES} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
 
 set_property (SOURCE iio.c PROPERTY COMPILE_FLAGS "-Wno-unused-variable -Wno-unused-parameter -Wno-pointer-sign -Wno-parentheses -Wno-deprecated-declarations -Wno-unused-function")
 
-add_executable(da3d DA3D.cpp DA3D.hpp DftPatch.hpp iio.c iio.h WeightMap.cpp WeightMap.hpp Utils.cpp Utils.hpp main.cpp)
+add_executable(da3d DA3D.cpp DA3D.hpp DftPatch.hpp iio.c iio.h Image.hpp WeightMap.cpp WeightMap.hpp Utils.cpp Utils.hpp main.cpp)
